@@ -22,7 +22,7 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 | [FFI Considerations](spec/FFI-Considerations.md) | Design discussion and rationale for FFI decisions | ✅ Complete |
 | [FFI Design Specification](spec/ffi-design.md) | Foreign function interface for C interop | ✅ Complete |
 | Paradigm & Language Philosophy | Core programming paradigm design | 🔜 Next |
-| Compiler Architecture | Bootstrap compiler design | 🔜 Planned |
+| [Compiler Architecture](spec/compiler-architecture.md) | Compilation pipeline, two-tier backend, cross-compilation | ✅ Draft |
 
 ## Roadmap
 
