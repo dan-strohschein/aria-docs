@@ -24,7 +24,10 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 | [Package & Module System](spec/package-module-system.md) | Module declarations, imports, dependency management | ✅ Complete |
 | [FFI Considerations](spec/FFI-Considerations.md) | Design discussion and rationale for FFI decisions | ✅ Complete |
 | [FFI Design Specification](spec/ffi-design.md) | Foreign function interface for C interop | ✅ Complete |
-| Paradigm & Language Philosophy | Core programming paradigm design | 🔜 Next |
+| [String Handling](spec/string-handling.md) | String types, interpolation, and text processing | ✅ Draft |
+| [Numeric Types & Overflow](spec/numeric-overflow.md) | Integer/float behavior, overflow semantics | ✅ Draft |
+| [Paradigm Design](spec/paradigm-design.md) | Core programming paradigm design | ✅ Draft |
+| [Language Spec Addendum](spec/language-spec-addendum.md) | Pipeline operator & destructuring | ✅ Draft |
 | [Compiler Architecture](spec/compiler-architecture.md) | Compilation pipeline, two-tier backend, cross-compilation | ✅ Draft |
 
 ## Roadmap
@@ -49,7 +52,9 @@ aria-docs/
     ├── paradigm-design.md              # Paradigm philosophy and language design rationale
     ├── language-spec-addendum.md       # Pipeline operator and destructuring addendum
     ├── FFI-Considerations.md           # FFI design discussion and rationale
-    └── ffi-design.md                   # Formal FFI specification
+    ├── ffi-design.md                   # Formal FFI specification
+    ├── string-handling.md              # String types, interpolation, and text processing
+    └── numeric-overflow.md             # Integer/float behavior, overflow semantics
 ```
 
 ## License
