@@ -21,6 +21,9 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 | [Package & Module System](spec/package-module-system.md) | Module declarations, imports, dependency management | ✅ Complete |
 | [FFI Considerations](spec/FFI-Considerations.md) | Design discussion and rationale for FFI decisions | ✅ Complete |
 | [FFI Design Specification](spec/ffi-design.md) | Foreign function interface for C interop | ✅ Complete |
+| [Closures & Capture Semantics](spec/closures-capture-semantics.md) | Closure syntax, capture rules, `once` closures | ✅ Draft |
+| [Initialization & Zero Values](spec/initialization-zero-values.md) | Field defaults, `late` init, `Default` trait | ✅ Draft |
+| [Iteration Protocol](spec/iteration-protocol.md) | `Iterable`/`Iterator` traits, lazy chains, comprehensions | ✅ Draft |
 | Paradigm & Language Philosophy | Core programming paradigm design | 🔜 Next |
 | Compiler Architecture | Bootstrap compiler design | 🔜 Planned |
 
@@ -41,7 +44,10 @@ aria-docs/
     ├── stdlib-design.md                # Standard library module design
     ├── package-module-system.md        # Package, module, and dependency management
     ├── FFI-Considerations.md           # FFI design discussion and rationale
-    └── ffi-design.md                   # Formal FFI specification
+    ├── ffi-design.md                   # Formal FFI specification
+    ├── closures-capture-semantics.md   # Closures and capture semantics
+    ├── initialization-zero-values.md   # Initialization and zero values
+    └── iteration-protocol.md           # Iteration protocol
 ```
 
 ## License
