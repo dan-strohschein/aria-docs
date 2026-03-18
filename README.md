@@ -17,6 +17,9 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 | Document | Description | Status |
 |---|---|---|
 | [Language Spec v0.1](high-level-design.md) | Core language design, syntax, and design pillars | ✅ Complete |
+| [Formal Grammar](spec/formal-grammar.md) | Complete EBNF grammar for parser implementors | ✅ Draft |
+| [Operator Precedence](spec/operator-precedence.md) | Complete precedence table and parsing rules | ✅ Draft |
+| [Scoping Rules](spec/scoping-rules.md) | Name resolution, shadowing, and variable lifecycle | ✅ Draft |
 | [Standard Library Design](spec/stdlib-design.md) | Built-in modules, APIs, and tier system | ✅ Complete |
 | [Package & Module System](spec/package-module-system.md) | Module declarations, imports, dependency management | ✅ Complete |
 | [FFI Considerations](spec/FFI-Considerations.md) | Design discussion and rationale for FFI decisions | ✅ Complete |
@@ -38,8 +41,13 @@ aria-docs/
 ├── README.md                           # This file
 ├── high-level-design.md                # Language spec v0.1 — core syntax and design pillars
 └── spec/
+    ├── formal-grammar.md               # Complete EBNF grammar for parser implementors
+    ├── operator-precedence.md          # Complete precedence table and parsing rules
+    ├── scoping-rules.md                # Name resolution, shadowing, and variable lifecycle
     ├── stdlib-design.md                # Standard library module design
     ├── package-module-system.md        # Package, module, and dependency management
+    ├── paradigm-design.md              # Paradigm philosophy and language design rationale
+    ├── language-spec-addendum.md       # Pipeline operator and destructuring addendum
     ├── FFI-Considerations.md           # FFI design discussion and rationale
     └── ffi-design.md                   # Formal FFI specification
 ```
