@@ -21,13 +21,15 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 | [Package & Module System](spec/package-module-system.md) | Module declarations, imports, dependency management | ✅ Complete |
 | [FFI Considerations](spec/FFI-Considerations.md) | Design discussion and rationale for FFI decisions | ✅ Complete |
 | [FFI Design Specification](spec/ffi-design.md) | Foreign function interface for C interop | ✅ Complete |
-| Paradigm & Language Philosophy | Core programming paradigm design | 🔜 Next |
+| [Paradigm Design](spec/paradigm-design.md) | Core programming paradigm and language philosophy | ✅ Complete |
+| [Language Spec Addendum](spec/language-spec-addendum.md) | Pipeline operator, destructuring, expression blocks | ✅ Complete |
+| [Error Handling](spec/error-handling.md) | Error types, propagation, traces, recovery, concurrency errors | ✅ Complete |
 | Compiler Architecture | Bootstrap compiler design | 🔜 Planned |
 
 ## Roadmap
 
 - **Phase 1**: Language spec, standard library, module system, FFI design (documentation only) — ✅ **Complete**
-- **Phase 1.5**: Paradigm design, language philosophy, and remaining spec refinements — 🔄 **In Progress**
+- **Phase 1.5**: Paradigm design, language philosophy, error handling, and remaining spec refinements — ✅ **Complete**
 - **Phase 2**: Compiler implementation (bootstrap)
 - **Phase 3**: Write a real program in Aria to stress-test the design
 
@@ -41,7 +43,10 @@ aria-docs/
     ├── stdlib-design.md                # Standard library module design
     ├── package-module-system.md        # Package, module, and dependency management
     ├── FFI-Considerations.md           # FFI design discussion and rationale
-    └── ffi-design.md                   # Formal FFI specification
+    ├── ffi-design.md                   # Formal FFI specification
+    ├── paradigm-design.md              # Core programming paradigm and language philosophy
+    ├── language-spec-addendum.md       # Pipeline operator, destructuring, expression blocks
+    └── error-handling.md               # Error types, propagation, traces, recovery, concurrency
 ```
 
 ## License
