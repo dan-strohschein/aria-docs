@@ -21,6 +21,7 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 | [Package & Module System](spec/package-module-system.md) | Module declarations, imports, dependency management | ✅ Complete |
 | [FFI Considerations](spec/FFI-Considerations.md) | Design discussion and rationale for FFI decisions | ✅ Complete |
 | [FFI Design Specification](spec/ffi-design.md) | Foreign function interface for C interop | ✅ Complete |
+| [Date & Time Design](spec/datetime-design.md) | Temporal types, durations, timezone handling | ✅ Draft |
 | Paradigm & Language Philosophy | Core programming paradigm design | 🔜 Next |
 | Compiler Architecture | Bootstrap compiler design | 🔜 Planned |
 
