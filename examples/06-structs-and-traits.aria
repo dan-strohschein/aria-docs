@@ -1,0 +1,244 @@
+// Example 06: Structs and Traits
+//
+// Demonstrates:
+//   - Struct definitions
+//   - Trait definitions
+//   - impl blocks (inherent methods)
+//   - impl blocks (trait implementations)
+//   - Trait bounds on generic functions
+//   - Composition over inheritance
+//   - Default trait implementations
+//   - Multiple trait implementations for the same type
+
+mod main
+
+// --- Trait definitions ---
+
+trait Area {
+    fn area(self) -> f64
+}
+
+trait Perimeter {
+    fn perimeter(self) -> f64
+}
+
+trait Display {
+    fn display(self) -> str
+}
+
+trait Validate {
+    fn validate(self) -> bool!ValidationError
+}
+
+// Trait with a default implementation
+trait Describe {
+    fn name(self) -> str
+
+    // Default implementation — types can override this
+    fn describe(self) -> str = "I am a {self.name()}"
+}
+
+// --- Structs ---
+
+struct Circle {
+    radius: f64
+}
+
+struct Rectangle {
+    width:  f64
+    height: f64
+}
+
+struct Triangle {
+    a: f64
+    b: f64
+    c: f64
+}
+
+struct ValidationError {
+    message: str
+}
+
+struct Email {
+    value: str
+}
+
+struct Username {
+    value: str
+}
+
+// --- Inherent methods (no trait) ---
+
+impl Circle {
+    fn new(radius: f64) -> Circle = Circle { radius }
+
+    fn diameter(self) -> f64 = self.radius * 2.0
+}
+
+impl Rectangle {
+    fn new(width: f64, height: f64) -> Rectangle = Rectangle { width, height }
+
+    fn is_square(self) -> bool = self.width == self.height
+}
+
+// --- Trait implementations: Circle ---
+
+impl Area for Circle {
+    fn area(self) -> f64 = 3.14159265358979 * self.radius * self.radius
+}
+
+impl Perimeter for Circle {
+    fn perimeter(self) -> f64 = 2.0 * 3.14159265358979 * self.radius
+}
+
+impl Display for Circle {
+    fn display(self) -> str = "Circle(r={self.radius})"
+}
+
+impl Describe for Circle {
+    fn name(self) -> str = "circle"
+    // uses default describe()
+}
+
+// --- Trait implementations: Rectangle ---
+
+impl Area for Rectangle {
+    fn area(self) -> f64 = self.width * self.height
+}
+
+impl Perimeter for Rectangle {
+    fn perimeter(self) -> f64 = 2.0 * (self.width + self.height)
+}
+
+impl Display for Rectangle {
+    fn display(self) -> str = "Rectangle({self.width}×{self.height})"
+}
+
+impl Describe for Rectangle {
+    fn name(self) -> str = "rectangle"
+    // override the default describe()
+    fn describe(self) -> str {
+        if self.is_square() {
+            "I am a square ({self.width}×{self.height})"
+        } else {
+            "I am a rectangle ({self.width}×{self.height})"
+        }
+    }
+}
+
+// --- Trait implementations: Triangle ---
+
+impl Area for Triangle {
+    fn area(self) -> f64 {
+        // Heron's formula
+        s := (self.a + self.b + self.c) / 2.0
+        (s * (s - self.a) * (s - self.b) * (s - self.c)).sqrt()
+    }
+}
+
+impl Perimeter for Triangle {
+    fn perimeter(self) -> f64 = self.a + self.b + self.c
+}
+
+impl Display for Triangle {
+    fn display(self) -> str = "Triangle({self.a}, {self.b}, {self.c})"
+}
+
+// --- Validation trait implementations ---
+
+impl Validate for Email {
+    fn validate(self) -> bool!ValidationError {
+        if self.value.len() == 0 {
+            return err(ValidationError { message: "email cannot be empty" })
+        }
+        if !self.value.contains("@") {
+            return err(ValidationError { message: "email must contain @" })
+        }
+        if !self.value.contains(".") {
+            return err(ValidationError { message: "email must contain ." })
+        }
+        true
+    }
+}
+
+impl Display for Email {
+    fn display(self) -> str = self.value
+}
+
+impl Validate for Username {
+    fn validate(self) -> bool!ValidationError {
+        if self.value.len() < 3 {
+            return err(ValidationError { message: "username must be at least 3 characters" })
+        }
+        if self.value.len() > 32 {
+            return err(ValidationError { message: "username cannot exceed 32 characters" })
+        }
+        true
+    }
+}
+
+// --- Generic functions with trait bounds ---
+
+fn print_shape[T: Area + Perimeter + Display](shape: T) {
+    println("{shape.display()}: area={shape.area():.2}, perimeter={shape.perimeter():.2}")
+}
+
+// Multiple bounds with composition
+fn summarize[T: Area + Display](shape: T) -> str {
+    "{shape.display()} has area {shape.area():.4}"
+}
+
+fn validate_and_show[T: Validate + Display](item: T) {
+    match item.validate() {
+        Ok(_)  => println("✓ Valid: {item.display()}")
+        Err(e) => println("✗ Invalid '{item.display()}': {e.message}")
+    }
+}
+
+// Composition: a struct that contains other structs
+struct LabeledShape {
+    label: str
+    area:  f64
+}
+
+fn to_labeled[T: Area + Display](shape: T, label: str) -> LabeledShape {
+    LabeledShape { label, area: shape.area() }
+}
+
+entry {
+    circle := Circle.new(5.0)
+    rect   := Rectangle.new(4.0, 6.0)
+    square := Rectangle.new(3.0, 3.0)
+    tri    := Triangle { a: 3.0, b: 4.0, c: 5.0 }
+
+    println("=== Shape details ===")
+    print_shape(circle)
+    print_shape(rect)
+    print_shape(square)
+    print_shape(tri)
+
+    println("")
+    println("=== Inherent methods ===")
+    println("Diameter: {circle.diameter()}")
+    println("Is square: {rect.is_square()}")
+    println("Is square: {square.is_square()}")
+
+    println("")
+    println("=== Describe trait (with default) ===")
+    println(circle.describe())
+    println(rect.describe())
+    println(square.describe())
+
+    println("")
+    println("=== Validation ===")
+    validate_and_show(Email { value: "user@example.com" })
+    validate_and_show(Email { value: "not-an-email" })
+    validate_and_show(Email { value: "" })
+    validate_and_show(Username { value: "alice" })
+    validate_and_show(Username { value: "ab" })
+
+    println("")
+    println("=== Composition ===")
+    labeled := to_labeled(circle, "main circle")
+    println("{labeled.label}: area={labeled.area:.4}")
+}

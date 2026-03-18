@@ -1,0 +1,108 @@
+// Example 02: Types and Variables
+//
+// Demonstrates:
+//   - All primitive types
+//   - Immutable and mutable variable declarations
+//   - Constants
+//   - Struct definitions with field defaults
+//   - Type aliases
+//   - No implicit conversions (explicit casting)
+
+mod main
+
+// --- Constants ---
+const MAX_RETRIES = 3
+const APP_VERSION = "1.0.0"
+const PI = 3.14159265358979
+
+// --- Type aliases ---
+type UserId = i64
+type Score  = f64
+type Tag    = str
+
+// --- Structs with defaults ---
+struct Point {
+    x: f64 = 0.0
+    y: f64 = 0.0
+}
+
+struct Config {
+    host:     str  = "localhost"
+    port:     i64  = 8080
+    debug:    bool = false
+    max_conn: i64  = 100
+}
+
+struct Player {
+    id:    UserId
+    name:  str
+    score: Score = 0.0
+    level: i64   = 1
+    alive: bool  = true
+}
+
+entry {
+    // --- Integer types ---
+    a: i8  = 127
+    b: i16 = 32_000
+    c: i32 = 2_000_000
+    d: i64 = 9_000_000_000   // default int type
+    e: u8  = 255
+    f: u16 = 65_535
+    g: u32 = 4_294_967_295
+    h: u64 = 18_446_744_073_709_551_615
+
+    // --- Floating point ---
+    x: f32 = 3.14
+    y: f64 = 2.718281828     // default float type
+
+    // --- Other primitives ---
+    flag: bool = true
+    ch: byte   = 65           // ASCII 'A'
+    s: str     = "hello"
+
+    // --- Immutable variable (type inferred) ---
+    count := 42               // inferred as i64
+    greeting := "Hi there"   // inferred as str
+    ratio := 0.75             // inferred as f64
+
+    // --- Mutable variable ---
+    mut total := 0
+    total = total + 10
+    total = total + 5
+    println("Total: {total}")
+
+    // --- Type alias usage ---
+    player_id: UserId = 1001
+    player_score: Score = 99.5
+
+    // --- Struct construction ---
+    origin := Point {}                           // uses all defaults
+    p1 := Point { x: 3.0, y: 4.0 }
+    p2 := Point { x: 1.0 }                      // y defaults to 0.0
+
+    // --- Struct update syntax (immutable copy with changes) ---
+    p3 := p1.{ y: 10.0 }                        // x stays 3.0, y becomes 10.0
+
+    // --- Default config, then override ---
+    default_cfg := Config {}
+    custom_cfg  := Config { port: 9090, debug: true }
+    prod_cfg    := custom_cfg.{ debug: false, max_conn: 500 }
+
+    // --- No implicit conversions — must be explicit ---
+    big: i64 = 1000
+    small: i32 = big as i32   // explicit cast required
+
+    // --- Underscore in number literals for readability ---
+    million := 1_000_000
+    hex_val := 0xFF
+    bin_val := 0b1010_1010
+
+    println("PI = {PI}")
+    println("Version: {APP_VERSION}")
+    println("Max retries: {MAX_RETRIES}")
+    println("p1 = ({p1.x}, {p1.y})")
+    println("p3 = ({p3.x}, {p3.y})")
+    println("Port: {custom_cfg.port}, Debug: {custom_cfg.debug}")
+    println("Million: {million}")
+}

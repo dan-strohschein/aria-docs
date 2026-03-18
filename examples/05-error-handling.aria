@@ -1,0 +1,153 @@
+// Example 05: Error Handling
+//
+// Demonstrates:
+//   - Result[T, E] / T!E type
+//   - ? operator for propagation
+//   - catch block for inline handling
+//   - Custom error types
+//   - The ! operator (assert success, panic on failure)
+//   - match on errors for full control
+//   - Converting between error types
+
+mod main
+
+use std.{fs, json}
+
+// --- Custom error types as sum types ---
+type ParseError =
+    | EmptyInput
+    | InvalidFormat(str)
+    | OutOfRange(i64, i64, i64)   // value, min, max
+
+type AppError =
+    | Io(str)
+    | Parse(ParseError)
+    | NotFound(str)
+    | Unauthorized
+
+// --- Functions returning Result ---
+fn parse_positive(s: str) -> i64!ParseError {
+    if s.len() == 0 {
+        return err(ParseError.EmptyInput)
+    }
+    n := s.parse[i64]() catch {
+        _ => return err(ParseError.InvalidFormat(s))
+    }
+    if n <= 0 {
+        return err(ParseError.OutOfRange(n, 1, i64.MAX))
+    }
+    n
+}
+
+fn parse_percentage(s: str) -> f64!ParseError {
+    if s.len() == 0 {
+        return err(ParseError.EmptyInput)
+    }
+    val := s.parse[f64]() catch {
+        _ => return err(ParseError.InvalidFormat(s))
+    }
+    if val < 0.0 || val > 100.0 {
+        return err(ParseError.OutOfRange(val as i64, 0, 100))
+    }
+    val
+}
+
+// --- Chaining errors with ? ---
+fn load_count(path: str) -> i64!AppError {
+    // ? propagates and wraps in AppError.Io
+    raw := fs.read(path) catch {
+        IoError.NotFound  => return err(AppError.NotFound(path))
+        e                 => return err(AppError.Io("{e}"))
+    }
+    // Convert ParseError to AppError via map_err
+    parse_positive(raw.trim()) catch {
+        e => return err(AppError.Parse(e))
+    }
+}
+
+// --- Describing errors ---
+fn describe_parse_error(e: ParseError) -> str {
+    match e {
+        EmptyInput              => "input was empty"
+        InvalidFormat(s)        => "'{s}' is not a valid number"
+        OutOfRange(v, lo, hi)   => "{v} is out of range [{lo}, {hi}]"
+    }
+}
+
+fn describe_app_error(e: AppError) -> str {
+    match e {
+        Io(msg)           => "I/O error: {msg}"
+        Parse(p)          => "parse error: {describe_parse_error(p)}"
+        NotFound(path)    => "file not found: {path}"
+        Unauthorized      => "not authorized"
+    }
+}
+
+// --- The catch block ---
+fn safe_parse_demo(input: str) {
+    result := catch parse_positive(input) {
+        ParseError.EmptyInput       => -1
+        ParseError.InvalidFormat(s) => { println("Bad input: {s}"); 0 }
+        e                           => { println("Error: {describe_parse_error(e)}"); 0 }
+    }
+    println("Parsed '{input}' => {result}")
+}
+
+// --- The ! operator: assert success (panics on error) ---
+// Use only when failure means a programming bug, not user error
+fn must_parse(s: str) -> i64 = parse_positive(s)!
+
+// --- Full match on Result ---
+fn try_load(path: str) {
+    match load_count(path) {
+        Ok(n)  => println("Loaded count: {n}")
+        Err(e) => println("Failed: {describe_app_error(e)}")
+    }
+}
+
+entry {
+    // --- Basic ? propagation ---
+    println("=== Basic parsing ===")
+    safe_parse_demo("42")
+    safe_parse_demo("")
+    safe_parse_demo("abc")
+    safe_parse_demo("-5")
+
+    println("")
+    println("=== Must parse (! operator) ===")
+    // Only use ! when the value is known to be valid
+    n := must_parse("100")
+    println("Must-parsed: {n}")
+
+    println("")
+    println("=== Full error matching ===")
+    errors := [
+        ParseError.EmptyInput,
+        ParseError.InvalidFormat("xyz"),
+        ParseError.OutOfRange(150, 0, 100),
+    ]
+    for e in errors {
+        println("  {describe_parse_error(e)}")
+    }
+
+    println("")
+    println("=== File-based errors ===")
+    try_load("counts.txt")           // will be NotFound in a fresh run
+    try_load("")                     // will be Io or Parse error
+
+    println("")
+    println("=== catch with multiple arms ===")
+    pct := catch parse_percentage("75.5") {
+        _ => 0.0
+    }
+    println("Percentage: {pct}%")
+
+    bad_pct := catch parse_percentage("150") {
+        ParseError.OutOfRange(v, lo, hi) => {
+            println("Clamping {v} to [{lo}, {hi}]")
+            100.0
+        }
+        _ => 0.0
+    }
+    println("Clamped percentage: {bad_pct}%")
+}

@@ -12,6 +12,14 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 4. **Performance is opt-in granular** — GC by default, manual control when needed
 5. **Simplicity for humans** — no dependency hell, no security nightmares, intuitive project structure
 
+## AI Code Generation
+
+Aria is designed to be generated correctly by AI models *without specific training*. The language's unambiguous grammar, minimal syntax, and rich type system make it inherently easy for AI to produce correct code from specification alone.
+
+- **[AI Code Generation Guide](ARIA_AI_GUIDE.md)** — inject this into any AI assistant's context for instant Aria fluency
+- **[Example Programs](examples/)** — 16 reference programs covering every language feature
+- **[Copilot Instructions](.github/copilot-instructions.md)** — automatic context for GitHub Copilot
+
 ## Documentation
 
 | Document | Description | Status |
@@ -21,6 +29,7 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 | [Package & Module System](spec/package-module-system.md) | Module declarations, imports, dependency management | ✅ Complete |
 | [FFI Considerations](spec/FFI-Considerations.md) | Design discussion and rationale for FFI decisions | ✅ Complete |
 | [FFI Design Specification](spec/ffi-design.md) | Foreign function interface for C interop | ✅ Complete |
+| [AI Code Generation Guide](ARIA_AI_GUIDE.md) | AI context reference for code generation | ✅ Draft |
 | Paradigm & Language Philosophy | Core programming paradigm design | 🔜 Next |
 | Compiler Architecture | Bootstrap compiler design | 🔜 Planned |
 
@@ -36,7 +45,27 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 ```
 aria-docs/
 ├── README.md                           # This file
+├── ARIA_AI_GUIDE.md                    # AI context reference for code generation
 ├── high-level-design.md                # Language spec v0.1 — core syntax and design pillars
+├── .github/
+│   └── copilot-instructions.md         # Automatic context for GitHub Copilot
+├── examples/                           # 16 reference programs covering every language feature
+│   ├── 01-hello-world.aria
+│   ├── 02-types-and-variables.aria
+│   ├── 03-functions.aria
+│   ├── 04-control-flow.aria
+│   ├── 05-error-handling.aria
+│   ├── 06-structs-and-traits.aria
+│   ├── 07-enums-and-pattern-matching.aria
+│   ├── 08-collections-and-pipelines.aria
+│   ├── 09-concurrency.aria
+│   ├── 10-error-handling-advanced.aria
+│   ├── 11-modules-and-imports.aria
+│   ├── 12-resource-management.aria
+│   ├── 13-testing.aria
+│   ├── 14-generics.aria
+│   ├── 15-real-world-http-server.aria
+│   └── 16-real-world-cli-tool.aria
 └── spec/
     ├── stdlib-design.md                # Standard library module design
     ├── package-module-system.md        # Package, module, and dependency management
