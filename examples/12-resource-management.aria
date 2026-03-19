@@ -1,0 +1,164 @@
+// Example 12: Resource Management
+//
+// Demonstrates:
+//   - The `with` statement for automatic cleanup
+//   - File I/O with resource management
+//   - Multiple resources in a single `with` block
+//   - Custom types implementing the Drop trait
+//   - Nested `with` blocks
+//   - Error handling within `with` blocks
+
+mod main
+
+use std.{fs, log, db}
+
+// --- Custom type with Drop for automatic cleanup ---
+
+struct TempFile {
+    path: str
+}
+
+impl Drop for TempFile {
+    fn drop(self) {
+        if fs.exists(self.path) {
+            fs.remove(self.path) catch {
+                e => log.warn("Failed to clean up temp file {self.path}: {e}")
+            }
+        }
+        log.info("Cleaned up temp file: {self.path}")
+    }
+}
+
+fn make_temp_file(prefix: str) -> TempFile!fs.Error {
+    path := "/tmp/{prefix}-{time.now().unix()}.tmp"
+    fs.write(path, "")?    // create the file
+    TempFile { path }
+}
+
+struct ManagedBuffer {
+    data: [byte]
+    label: str
+}
+
+impl Drop for ManagedBuffer {
+    fn drop(self) {
+        log.debug("Releasing buffer '{self.label}' ({self.data.len()} bytes)")
+    }
+}
+
+// --- Functions demonstrating `with` ---
+
+fn read_file_safe(path: str) -> str!fs.Error {
+    // `with` automatically closes the file when the block exits,
+    // whether normally or via error propagation
+    with file := fs.open(path)? {
+        file.read_all()?
+    }
+}
+
+fn copy_file(src: str, dst: str) -> bool!fs.Error {
+    // Two resources in one `with` — both automatically closed
+    with in_file  := fs.open(src)?,
+         out_file := fs.create(dst)? {
+        content := in_file.read_all()?
+        out_file.write(content)?
+        true
+    }
+}
+
+fn process_log(path: str) -> [str]!fs.Error {
+    with file := fs.open(path)? {
+        mut results: [str] = []
+        for line in file.lines() {
+            trimmed := line.trim()
+            if trimmed.len() > 0 && !trimmed.starts_with("#") {
+                results = results.append(trimmed)
+            }
+        }
+        results
+    }
+}
+
+fn write_report(data: [str], path: str) -> bool!fs.Error {
+    with writer := fs.create(path)? {
+        writer.write_line("# Report")?
+        writer.write_line("Generated: {time.now()}")?
+        writer.write_line("")?
+        for (i, line) in data.enumerate() {
+            writer.write_line("{i + 1}. {line}")?
+        }
+        true
+    }
+}
+
+fn with_temp_processing() -> bool!fs.Error {
+    // TempFile.drop() called when `with` block exits
+    with tmp := make_temp_file("work")? {
+        fs.write(tmp.path, "intermediate data")?
+        content := fs.read(tmp.path)?
+        log.info("Processed temp content: {content.len()} bytes")
+        true
+    }
+    // tmp.drop() called here — file is deleted
+}
+
+fn database_transaction(conn: db.Connection) -> bool!db.Error {
+    // Transaction is rolled back automatically if the block exits via error
+    with tx := conn.begin()? {
+        tx.exec("INSERT INTO events (type) VALUES (?)", ["login"])?
+        tx.exec("UPDATE users SET last_seen = NOW() WHERE id = ?", [1])?
+        tx.commit()?
+        true
+    }
+}
+
+// Nested `with` blocks for layered resource management
+fn nested_resources(db_url: str, log_path: str) -> bool!AppError {
+    with conn    := db.connect(db_url) catch { e => return err(AppError.Db(e)) },
+         log_file := fs.create(log_path) catch { e => return err(AppError.Io(e)) } {
+
+        with tx := conn.begin() catch { e => return err(AppError.Db(e)) } {
+            result := tx.query_all[str]("SELECT name FROM items")?
+            for name in result {
+                log_file.write_line("Migrated: {name}")?
+            }
+            tx.commit()?
+        }
+        true
+    }
+}
+
+type AppError = Db(db.Error) | Io(fs.Error)
+
+entry {
+    println("=== File read with automatic close ===")
+    match read_file_safe("README.md") {
+        Ok(content) => println("Read {content.len()} bytes")
+        Err(e)      => println("Error: {e}")
+    }
+
+    println("")
+    println("=== Copy file ===")
+    match copy_file("README.md", "/tmp/readme-copy.md") {
+        Ok(_)  => println("Copied successfully")
+        Err(e) => println("Copy failed: {e}")
+    }
+
+    println("")
+    println("=== Temp file cleanup ===")
+    // TempFile.drop() ensures cleanup even on error
+    result := with_temp_processing() catch {
+        e => { println("Error: {e}"); false }
+    }
+    println("Temp processing: {if result { "ok" } else { "failed" }}")
+
+    println("")
+    println("=== Manual with block ===")
+    with buf := ManagedBuffer { data: [1, 2, 3, 4, 5], label: "test" } {
+        println("Buffer has {buf.data.len()} bytes")
+        // buf.drop() called at end of block
+    }
+
+    println("")
+    println("=== Done ===")
+}

@@ -1,0 +1,38 @@
+// Example 01: Hello World
+//
+// Demonstrates:
+//   - Module declaration
+//   - Entry point (entry block)
+//   - println (built-in, no import needed)
+//   - String interpolation
+//   - Simple function calls
+//   - fn with explicit return type
+
+mod main
+
+fn greet(name: str) -> str = "Hello, {name}!"
+
+fn greet_formal(title: str, last_name: str) -> str {
+    "Good day, {title} {last_name}."
+}
+
+entry {
+    // println is a built-in — no import required
+    println("Hello, World!")
+
+    // String interpolation with { }
+    name := "Aria"
+    println("Hello, {name}!")
+
+    // Function calls
+    msg := greet("developer")
+    println(msg)
+
+    formal := greet_formal("Dr.", "Turing")
+    println(formal)
+
+    // Expressions inline in interpolation
+    x := 6
+    y := 7
+    println("The answer is {x * y}.")
+}

@@ -1,0 +1,191 @@
+// Example 07: Enums and Pattern Matching
+//
+// Demonstrates:
+//   - Sum types (enums) with and without data
+//   - Exhaustive match (compiler enforces all arms)
+//   - Nested pattern matching
+//   - Guard clauses in match arms
+//   - Destructuring in match arms
+//   - Option[T] as a built-in sum type
+//   - Result[T,E] pattern matching
+//   - Wildcard (_) and rest (..) patterns
+
+mod main
+
+// --- Simple enum (no data) ---
+type Season = Spring | Summer | Autumn | Winter
+
+// --- Enum with associated data ---
+type Shape =
+    | Circle(f64)
+    | Rectangle(f64, f64)
+    | Triangle(f64, f64, f64)
+    | Point
+
+// --- Nested enum ---
+type Color =
+    | Rgb(u8, u8, u8)
+    | Hsl(f64, f64, f64)
+    | Named(str)
+    | Transparent
+
+type Stroke =
+    | Solid(Color)
+    | Dashed(Color, f64)    // color, dash_length
+    | None
+
+// --- Enum with struct-like variants ---
+type Command =
+    | Move { x: i64, y: i64 }
+    | Print { message: str }
+    | Repeat { count: i64, cmd: Command }
+    | Quit
+
+// --- Functions using match ---
+
+fn area(shape: Shape) -> f64 {
+    match shape {
+        Circle(r)        => 3.14159 * r * r
+        Rectangle(w, h)  => w * h
+        Triangle(a, b, c) => {
+            // Heron's formula
+            s := (a + b + c) / 2.0
+            (s * (s - a) * (s - b) * (s - c)).sqrt()
+        }
+        Point            => 0.0
+    }
+}
+
+fn describe_season(s: Season) -> str {
+    match s {
+        Spring => "flowers bloom"
+        Summer => "sun shines"
+        Autumn => "leaves fall"
+        Winter => "snow falls"
+    }
+}
+
+fn describe_shape(shape: Shape) -> str {
+    match shape {
+        Circle(r) if r > 10.0  => "large circle (r={r})"
+        Circle(r)              => "circle (r={r})"
+        Rectangle(w, h) if w == h => "square ({w}×{h})"
+        Rectangle(w, h)        => "rectangle ({w}×{h})"
+        Triangle(a, b, c)      => "triangle ({a},{b},{c})"
+        Point                  => "point"
+    }
+}
+
+// --- Nested pattern matching ---
+fn describe_stroke(stroke: Stroke) -> str {
+    match stroke {
+        Solid(Rgb(r, g, b))        => "solid rgb({r},{g},{b})"
+        Solid(Named(name))         => "solid {name}"
+        Solid(Transparent)         => "solid transparent"
+        Solid(_)                   => "solid (other color)"
+        Dashed(Named(name), len)   => "dashed {name} ({len}px)"
+        Dashed(_, len)             => "dashed ({len}px)"
+        None                       => "no stroke"
+    }
+}
+
+// --- Matching on Option ---
+fn describe_option(val: i64?) -> str {
+    match val {
+        Some(n) if n > 0 => "positive: {n}"
+        Some(0)          => "zero"
+        Some(n)          => "negative: {n}"
+        None             => "nothing"
+    }
+}
+
+// --- Matching on Result ---
+type ParseError = BadFormat(str) | Overflow
+
+fn parse_u8(s: str) -> u8!ParseError {
+    n := s.parse[i64]() catch {
+        _ => return err(ParseError.BadFormat(s))
+    }
+    if n < 0 || n > 255 {
+        return err(ParseError.Overflow)
+    }
+    n as u8
+}
+
+fn handle_parse(s: str) {
+    match parse_u8(s) {
+        Ok(n)                      => println("'{s}' => {n}")
+        Err(ParseError.BadFormat(v)) => println("'{s}' is not a number: {v}")
+        Err(ParseError.Overflow)   => println("'{s}' is out of u8 range")
+    }
+}
+
+// --- Struct-like variant destructuring ---
+fn execute(cmd: Command) {
+    match cmd {
+        Move { x, y }       => println("Move to ({x}, {y})")
+        Print { message }   => println("Print: {message}")
+        Repeat { count, cmd: inner } => {
+            for _ in 0..count {
+                execute(inner)
+            }
+        }
+        Quit                => println("Quit")
+    }
+}
+
+entry {
+    println("=== Seasons ===")
+    for s in [Season.Spring, Season.Summer, Season.Autumn, Season.Winter] {
+        println("{s}: {describe_season(s)}")
+    }
+
+    println("")
+    println("=== Shape areas ===")
+    shapes := [
+        Shape.Circle(5.0),
+        Shape.Rectangle(4.0, 6.0),
+        Shape.Triangle(3.0, 4.0, 5.0),
+        Shape.Point,
+    ]
+    for shape in shapes {
+        println("{describe_shape(shape)}: area = {area(shape):.4}")
+    }
+
+    println("")
+    println("=== Shape guards ===")
+    println(describe_shape(Shape.Circle(15.0)))
+    println(describe_shape(Shape.Rectangle(5.0, 5.0)))
+
+    println("")
+    println("=== Nested color/stroke matching ===")
+    strokes := [
+        Stroke.Solid(Color.Rgb(255, 0, 0)),
+        Stroke.Solid(Color.Named("blue")),
+        Stroke.Solid(Color.Transparent),
+        Stroke.Dashed(Color.Named("green"), 4.0),
+        Stroke.None,
+    ]
+    for s in strokes {
+        println(describe_stroke(s))
+    }
+
+    println("")
+    println("=== Option matching ===")
+    for v in [Some(5), Some(0), Some(-3), None] {
+        println(describe_option(v))
+    }
+
+    println("")
+    println("=== Result matching ===")
+    for s in ["42", "255", "256", "abc", "-1"] {
+        handle_parse(s)
+    }
+
+    println("")
+    println("=== Command execution ===")
+    execute(Command.Move { x: 10, y: 20 })
+    execute(Command.Print { message: "Hello from Aria!" })
+    execute(Command.Repeat { count: 3, cmd: Command.Print { message: "echo" } })
+    execute(Command.Quit)
+}

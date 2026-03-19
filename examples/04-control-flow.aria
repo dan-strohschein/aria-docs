@@ -1,0 +1,157 @@
+// Example 04: Control Flow
+//
+// Demonstrates:
+//   - if as an expression (returns a value)
+//   - if / else if / else chains
+//   - match expressions (exhaustive pattern matching)
+//   - match with guards
+//   - for loops over collections
+//   - for loops over ranges (exclusive and inclusive)
+//   - while loops
+//   - loop (infinite) with break
+//   - continue in loops
+//   - Nested control flow
+
+mod main
+
+type Direction = North | South | East | West
+
+type TrafficLight = Red | Yellow | Green
+
+fn light_wait(light: TrafficLight) -> i64 {
+    match light {
+        Red    => 60
+        Yellow => 5
+        Green  => 0
+    }
+}
+
+fn direction_label(d: Direction) -> str {
+    match d {
+        North => "↑"
+        South => "↓"
+        East  => "→"
+        West  => "←"
+    }
+}
+
+fn classify(n: i64) -> str {
+    match n {
+        0          => "zero"
+        1..=9      => "single digit"
+        10..=99    => "double digit"
+        100..=999  => "triple digit"
+        _          => "large"
+    }
+}
+
+fn describe_temp(celsius: f64) -> str {
+    match celsius {
+        t if t < 0.0   => "freezing"
+        t if t < 10.0  => "cold"
+        t if t < 20.0  => "cool"
+        t if t < 30.0  => "warm"
+        _              => "hot"
+    }
+}
+
+entry {
+    // --- if as an expression ---
+    score := 85
+    grade := if score >= 90 { "A" }
+             else if score >= 80 { "B" }
+             else if score >= 70 { "C" }
+             else { "F" }
+    println("Grade: {grade}")
+
+    // if inline in interpolation
+    connected := true
+    println("Status: {if connected { "online" } else { "offline" }}")
+
+    // --- match expression ---
+    light := TrafficLight.Red
+    wait  := light_wait(light)
+    println("Wait {wait}s for {light}")
+
+    // match as expression assigned to variable
+    msg := match TrafficLight.Green {
+        Red    => "stop"
+        Yellow => "slow down"
+        Green  => "go"
+    }
+    println("Traffic says: {msg}")
+
+    // --- match with ranges and guards ---
+    for n in [0, 5, 42, 100, 999, 10_000] {
+        println("{n} is {classify(n)}")
+    }
+
+    for temp in [-5.0, 8.0, 15.0, 25.0, 38.0] {
+        println("{temp}°C is {describe_temp(temp)}")
+    }
+
+    // --- for loop over collection ---
+    fruits := ["apple", "banana", "cherry", "date"]
+    for fruit in fruits {
+        println("Fruit: {fruit}")
+    }
+
+    // --- for loop with index (enumerate) ---
+    for (i, fruit) in fruits.enumerate() {
+        println("{i}: {fruit}")
+    }
+
+    // --- for loop over exclusive range ---
+    mut sum := 0
+    for i in 0..10 {
+        sum = sum + i
+    }
+    println("Sum 0..10 = {sum}")
+
+    // --- for loop over inclusive range ---
+    mut product := 1
+    for i in 1..=5 {
+        product = product * i
+    }
+    println("5! via range = {product}")
+
+    // --- for loop with continue ---
+    println("Even numbers 0..20:")
+    for i in 0..20 {
+        if i % 2 != 0 { continue }
+        print("{i} ")
+    }
+    println("")
+
+    // --- while loop ---
+    mut n := 1
+    while n < 128 {
+        n = n * 2
+    }
+    println("First power of 2 >= 128: {n}")
+
+    // --- loop (infinite) with break ---
+    mut attempts := 0
+    mut found    := false
+    loop {
+        attempts = attempts + 1
+        if attempts >= 5 {
+            found = true
+            break
+        }
+    }
+    println("Found after {attempts} attempts: {found}")
+
+    // --- Nested loops with labeled break ---
+    mut hit := false
+    outer: for row in 0..5 {
+        for col in 0..5 {
+            if row * col > 9 {
+                println("First product > 9: {row} × {col} = {row * col}")
+                hit = true
+                break outer
+            }
+        }
+    }
+    println("Found crossing: {hit}")
+}
