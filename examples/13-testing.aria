@@ -1,0 +1,196 @@
+// Example 13: Testing
+//
+// Demonstrates:
+//   - Inline test blocks (co-located with source code)
+//   - Basic assertions with assert
+//   - Testing error conditions
+//   - Table-driven tests
+//   - Testing Option and Result values
+//   - Test helpers and fixtures
+//   - Benchmarks
+
+mod main
+
+use std.test
+
+// ============================================================
+// Source code with co-located tests
+// ============================================================
+
+fn add(a: i64, b: i64) -> i64 = a + b
+
+fn subtract(a: i64, b: i64) -> i64 = a - b
+
+fn divide(a: f64, b: f64) -> f64? {
+    if b == 0.0 { None } else { Some(a / b) }
+}
+
+test "basic arithmetic" {
+    assert add(2, 3) == 5
+    assert add(-1, 1) == 0
+    assert add(0, 0) == 0
+    assert subtract(10, 3) == 7
+    assert subtract(0, 5) == -5
+}
+
+test "division" {
+    result := divide(10.0, 2.0)
+    assert result == Some(5.0)
+
+    zero_div := divide(5.0, 0.0)
+    assert zero_div == None
+}
+
+// ============================================================
+
+fn is_palindrome(s: str) -> bool {
+    reversed := s |> chars() |> reverse() |> join("")
+    s == reversed
+}
+
+test "palindrome detection" {
+    assert is_palindrome("racecar") == true
+    assert is_palindrome("level")   == true
+    assert is_palindrome("hello")   == false
+    assert is_palindrome("")        == true
+    assert is_palindrome("a")       == true
+}
+
+// ============================================================
+
+type ParseError = Empty | NotANumber | OutOfRange
+
+fn parse_age(s: str) -> i64!ParseError {
+    if s.len() == 0 { return err(ParseError.Empty) }
+    n := s.parse[i64]() catch {
+        _ => return err(ParseError.NotANumber)
+    }
+    if n < 0 || n > 150 { return err(ParseError.OutOfRange) }
+    n
+}
+
+test "parse_age success cases" {
+    assert parse_age("25") == Ok(25)
+    assert parse_age("0")  == Ok(0)
+    assert parse_age("150") == Ok(150)
+}
+
+test "parse_age error cases" {
+    assert parse_age("") == Err(ParseError.Empty)
+    assert parse_age("abc") == Err(ParseError.NotANumber)
+    assert parse_age("-1") == Err(ParseError.OutOfRange)
+    assert parse_age("151") == Err(ParseError.OutOfRange)
+}
+
+// ============================================================
+// Table-driven tests
+// ============================================================
+
+struct AddCase {
+    a:        i64
+    b:        i64
+    expected: i64
+}
+
+test "add — table driven" {
+    cases := [
+        AddCase { a: 0,    b: 0,    expected: 0    },
+        AddCase { a: 1,    b: 1,    expected: 2    },
+        AddCase { a: -5,   b: 5,    expected: 0    },
+        AddCase { a: 100,  b: -1,   expected: 99   },
+        AddCase { a: i64.MAX, b: 0, expected: i64.MAX },
+    ]
+    for c in cases {
+        result := add(c.a, c.b)
+        assert result == c.expected, "add({c.a}, {c.b}): expected {c.expected}, got {result}"
+    }
+}
+
+struct ParseAgeCase {
+    input:    str
+    expected: i64!ParseError
+}
+
+test "parse_age — table driven" {
+    cases := [
+        ParseAgeCase { input: "25",  expected: Ok(25) },
+        ParseAgeCase { input: "0",   expected: Ok(0)  },
+        ParseAgeCase { input: "",    expected: Err(ParseError.Empty) },
+        ParseAgeCase { input: "abc", expected: Err(ParseError.NotANumber) },
+        ParseAgeCase { input: "-1",  expected: Err(ParseError.OutOfRange) },
+    ]
+    for c in cases {
+        result := parse_age(c.input)
+        assert result == c.expected, "parse_age({c.input}): expected {c.expected}, got {result}"
+    }
+}
+
+// ============================================================
+// Testing with fixtures / helpers
+// ============================================================
+
+struct User {
+    id:       i64
+    username: str
+    email:    str
+    active:   bool = true
+}
+
+fn test_user(id: i64) -> User {
+    User { id, username: "user_{id}", email: "user{id}@example.com" }
+}
+
+fn find_user(users: [User], id: i64) -> User? {
+    users |> filter(fn(u) => u.id == id) |> first()
+}
+
+fn active_users(users: [User]) -> [User] {
+    users |> filter(fn(u) => u.active) |> collect()
+}
+
+test "find_user" {
+    users := [test_user(1), test_user(2), test_user(3)]
+
+    found := find_user(users, 2)
+    assert found == Some(test_user(2))
+
+    missing := find_user(users, 99)
+    assert missing == None
+}
+
+test "active_users" {
+    users := [
+        test_user(1),
+        test_user(2).{ active: false },
+        test_user(3),
+    ]
+    active := active_users(users)
+    assert active.len() == 2
+    assert active |> all(fn(u) => u.active)
+}
+
+// ============================================================
+// Benchmarks
+// ============================================================
+
+bench "add performance" {
+    for _ in 0..1_000_000 {
+        _ = add(42, 58)
+    }
+}
+
+bench "palindrome check" {
+    words := ["racecar", "hello", "level", "world", "madam"]
+    for _ in 0..10_000 {
+        for w in words { _ = is_palindrome(w) }
+    }
+}
+
+// ============================================================
+// Entry point (not run during tests)
+// ============================================================
+
+entry {
+    println("Run tests with: aria test")
+    println("Run benchmarks with: aria test --bench")
+}

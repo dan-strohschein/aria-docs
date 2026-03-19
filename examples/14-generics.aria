@@ -1,0 +1,254 @@
+// Example 14: Generics
+//
+// Demonstrates:
+//   - Generic functions with single trait bounds
+//   - Generic functions with multiple trait bounds
+//   - Generic structs
+//   - Generic trait implementations
+//   - Associated types (where applicable)
+//   - Phantom type parameters for type safety
+//   - Where clauses for complex bounds
+
+mod main
+
+// ============================================================
+// Generic functions
+// ============================================================
+
+// Single bound
+fn largest[T: Ord](items: [T]) -> T? {
+    if items.len() == 0 { return None }
+    mut max := items[0]
+    for item in items {
+        if item > max { max = item }
+    }
+    Some(max)
+}
+
+fn smallest[T: Ord](items: [T]) -> T? {
+    if items.len() == 0 { return None }
+    mut min := items[0]
+    for item in items {
+        if item < min { min = item }
+    }
+    Some(min)
+}
+
+// Multiple bounds
+fn debug_largest[T: Ord + Display](items: [T]) {
+    match largest(items) {
+        Some(v) => println("Largest: {v.display()}")
+        None    => println("Empty collection")
+    }
+}
+
+// Generic with where clause (preferred for complex bounds)
+fn merge_sorted[T](a: [T], b: [T]) -> [T]
+    where T: Ord + Clone
+{
+    mut result: [T] = []
+    mut i := 0
+    mut j := 0
+    while i < a.len() && j < b.len() {
+        if a[i] <= b[j] {
+            result = result.append(a[i].clone())
+            i = i + 1
+        } else {
+            result = result.append(b[j].clone())
+            j = j + 1
+        }
+    }
+    while i < a.len() { result = result.append(a[i].clone()); i = i + 1 }
+    while j < b.len() { result = result.append(b[j].clone()); j = j + 1 }
+    result
+}
+
+// ============================================================
+// Generic structs
+// ============================================================
+
+struct Pair[A, B] {
+    first:  A
+    second: B
+}
+
+impl[A, B] Pair[A, B] {
+    fn new(first: A, second: B) -> Pair[A, B] = Pair { first, second }
+    fn swap(self) -> Pair[B, A] = Pair { first: self.second, second: self.first }
+}
+
+impl[A: Display, B: Display] Display for Pair[A, B] {
+    fn display(self) -> str = "({self.first.display()}, {self.second.display()})"
+}
+
+// Generic stack
+struct Stack[T] {
+    items: [T]
+}
+
+impl[T] Stack[T] {
+    fn new() -> Stack[T] = Stack { items: [] }
+
+    fn push(self, item: T) -> Stack[T] =
+        Stack { items: self.items.append(item) }
+
+    fn pop(self) -> (Stack[T], T?) {
+        if self.items.len() == 0 {
+            (self, None)
+        } else {
+            n := self.items.len()
+            (Stack { items: self.items.take(n - 1) }, Some(self.items[n - 1]))
+        }
+    }
+
+    fn peek(self) -> T? {
+        if self.items.len() == 0 { None }
+        else { Some(self.items[self.items.len() - 1]) }
+    }
+
+    fn len(self) -> i64 = self.items.len()
+    fn is_empty(self) -> bool = self.items.len() == 0
+}
+
+// ============================================================
+// Generic traits
+// ============================================================
+
+trait Container[T] {
+    fn insert(self, item: T) -> Self
+    fn contains(self, item: T) -> bool where T: Eq
+    fn size(self) -> i64
+    fn is_empty(self) -> bool = self.size() == 0
+}
+
+// ============================================================
+// Phantom types for type-safe wrappers
+// ============================================================
+
+// Unit markers (phantom types)
+type Meters
+type Feet
+type Seconds
+type Kilograms
+
+// Generic measurement that is type-safe across units
+struct Measurement[Unit] {
+    value: f64
+}
+
+impl[U] Measurement[U] {
+    fn new(value: f64) -> Measurement[U] = Measurement { value }
+    fn value(self) -> f64 = self.value
+}
+
+impl[U] Display for Measurement[U] {
+    fn display(self) -> str = "{self.value}"
+}
+
+// Only meters can be added to meters (type system prevents unit errors)
+fn add_meters(a: Measurement[Meters], b: Measurement[Meters]) -> Measurement[Meters] {
+    Measurement { value: a.value + b.value }
+}
+
+// Explicit conversion with factor
+fn feet_to_meters(feet: Measurement[Feet]) -> Measurement[Meters] {
+    Measurement { value: feet.value * 0.3048 }
+}
+
+fn meters_to_feet(m: Measurement[Meters]) -> Measurement[Feet] {
+    Measurement { value: m.value / 0.3048 }
+}
+
+// ============================================================
+// Generic error handling
+// ============================================================
+
+fn try_map[T, U, E](items: [T], f: fn(T) -> U!E) -> [U]!E {
+    mut results: [U] = []
+    for item in items {
+        results = results.append(f(item)?)
+    }
+    results
+}
+
+fn try_find[T, E](items: [T], pred: fn(T) -> bool!E) -> T?!E {
+    for item in items {
+        if pred(item)? { return Some(item) }
+    }
+    None
+}
+
+// ============================================================
+// Entry point
+// ============================================================
+
+entry {
+    println("=== Generic largest/smallest ===")
+    ints := [3, 1, 4, 1, 5, 9, 2, 6]
+    println("Largest int: {largest(ints)}")
+    println("Smallest int: {smallest(ints)}")
+
+    words := ["banana", "apple", "cherry", "date"]
+    println("Largest word: {largest(words)}")
+    println("Smallest word: {smallest(words)}")
+
+    println("")
+    println("=== merge_sorted ===")
+    sorted_a := [1, 3, 5, 7]
+    sorted_b := [2, 4, 6, 8]
+    merged := merge_sorted(sorted_a, sorted_b)
+    println("Merged: {merged}")
+
+    println("")
+    println("=== Generic Pair ===")
+    p1 := Pair.new(42, "hello")
+    p2 := Pair.new(3.14, true)
+    println("p1 = ({p1.first}, {p1.second})")
+    swapped := Pair.new("hello", 42)    // swap type order
+    println("swapped = ({swapped.first}, {swapped.second})")
+
+    println("")
+    println("=== Generic Stack ===")
+    mut stack := Stack[i64].new()
+    stack = stack.push(10).push(20).push(30)
+    println("Top: {stack.peek()}")
+    println("Size: {stack.len()}")
+
+    (stack, top) := stack.pop()
+    println("Popped: {top}")
+    println("New top: {stack.peek()}")
+
+    println("")
+    println("=== Phantom type measurements ===")
+    dist1: Measurement[Meters] = Measurement.new(100.0)
+    dist2: Measurement[Meters] = Measurement.new(50.0)
+    total := add_meters(dist1, dist2)
+    println("100m + 50m = {total.value()}m")
+
+    height_ft: Measurement[Feet] = Measurement.new(6.0)
+    height_m  := feet_to_meters(height_ft)
+    println("6 feet = {height_m.value():.4}m")
+
+    // This would be a compile error (type mismatch):
+    // add_meters(dist1, height_ft)   // ❌ Meters + Feet
+
+    println("")
+    println("=== Generic try_map ===")
+    strings := ["1", "2", "3", "4", "5"]
+    type ParseErr = BadInt(str)
+    parsed := try_map(strings, fn(s) -> i64!ParseErr {
+        s.parse[i64]() catch { _ => return err(ParseErr.BadInt(s)) }
+    }) catch {
+        e => { println("Parse error: {e}"); [] }
+    }
+    println("Parsed: {parsed}")
+
+    bad_strings := ["1", "two", "3"]
+    bad_result := try_map(bad_strings, fn(s) -> i64!ParseErr {
+        s.parse[i64]() catch { _ => return err(ParseErr.BadInt(s)) }
+    })
+    match bad_result {
+        Ok(vals)            => println("OK: {vals}")
+        Err(ParseErr.BadInt(s)) => println("Failed on: '{s}'")
+    }
+}

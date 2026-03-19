@@ -1,0 +1,254 @@
+// Example 15: Real-World HTTP Server
+//
+// Demonstrates:
+//   - HTTP server setup using std.net
+//   - Routing with pattern matching
+//   - JSON request/response handling
+//   - Struct-based request/response types
+//   - Error handling in HTTP handlers
+//   - Structured concurrency for request handling
+//   - Middleware pattern via function composition
+//   - Resource management (DB connections)
+
+mod main
+
+use std.{net, json, log, db, time, crypto}
+
+// ============================================================
+// Domain types
+// ============================================================
+
+@[derive(Json, Debug)]
+struct User {
+    pub id:         i64
+    pub username:   str
+    pub email:      str
+    pub created_at: str
+}
+
+@[derive(Json, Debug)]
+struct CreateUserRequest {
+    pub username: str
+    pub email:    str
+    pub password: str
+}
+
+@[derive(Json, Debug)]
+struct ApiError {
+    pub code:    str
+    pub message: str
+}
+
+@[derive(Json, Debug)]
+struct ApiResponse[T] {
+    pub data:    T?
+    pub error:   ApiError?
+    pub took_ms: i64
+}
+
+// ============================================================
+// Error types
+// ============================================================
+
+type HandlerError =
+    | BadRequest(str)
+    | NotFound(str)
+    | Unauthorized
+    | Internal(str)
+
+fn error_response(e: HandlerError) -> (i64, ApiError) {
+    match e {
+        BadRequest(msg)  => (400, ApiError { code: "BAD_REQUEST",     message: msg })
+        NotFound(msg)    => (404, ApiError { code: "NOT_FOUND",       message: msg })
+        Unauthorized     => (401, ApiError { code: "UNAUTHORIZED",    message: "authentication required" })
+        Internal(msg)    => (500, ApiError { code: "INTERNAL_ERROR",  message: msg })
+    }
+}
+
+// ============================================================
+// App state (dependency injection via function parameters)
+// ============================================================
+
+struct AppState {
+    db:         db.Pool
+    jwt_secret: str
+}
+
+// ============================================================
+// Handlers
+// ============================================================
+
+fn handle_get_user(state: AppState, req: net.Request) -> net.Response!HandlerError {
+    id_str := req.params["id"] catch {
+        _ => return err(HandlerError.BadRequest("missing user id"))
+    }
+    id := id_str.parse[i64]() catch {
+        _ => return err(HandlerError.BadRequest("invalid user id: {id_str}"))
+    }
+
+    user := state.db.with_conn(fn(conn) -> User!db.Error {
+        conn.query_one[User]("SELECT id, username, email, created_at FROM users WHERE id = ?", [id])
+    }) catch {
+        db.NotFound => return err(HandlerError.NotFound("user {id} not found"))
+        e           => return err(HandlerError.Internal("db error: {e}"))
+    }
+
+    body := json.encode(ApiResponse[User] { data: Some(user), error: None, took_ms: 0 }) catch {
+        e => return err(HandlerError.Internal("serialization error: {e}"))
+    }
+
+    net.Response {
+        status:  200
+        headers: { "Content-Type": "application/json" }
+        body:    body
+    }
+}
+
+fn handle_create_user(state: AppState, req: net.Request) -> net.Response!HandlerError {
+    create_req := json.parse[CreateUserRequest](req.body) catch {
+        e => return err(HandlerError.BadRequest("invalid request body: {e}"))
+    }
+
+    // Validation
+    if create_req.username.len() < 3 {
+        return err(HandlerError.BadRequest("username must be at least 3 characters"))
+    }
+    if !create_req.email.contains("@") {
+        return err(HandlerError.BadRequest("invalid email address"))
+    }
+    if create_req.password.len() < 8 {
+        return err(HandlerError.BadRequest("password must be at least 8 characters"))
+    }
+
+    password_hash := crypto.hash_password(create_req.password) catch {
+        e => return err(HandlerError.Internal("hashing error: {e}"))
+    }
+
+    user := state.db.with_conn(fn(conn) -> User!db.Error {
+        conn.exec(
+            "INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?) RETURNING id, username, email, created_at",
+            [create_req.username, create_req.email, password_hash]
+        )?
+        conn.query_one[User]("SELECT id, username, email, created_at FROM users WHERE username = ?", [create_req.username])
+    }) catch {
+        db.Constraint("unique") => return err(HandlerError.BadRequest("username or email already taken"))
+        e                       => return err(HandlerError.Internal("db error: {e}"))
+    }
+
+    body := json.encode(ApiResponse[User] { data: Some(user), error: None, took_ms: 0 }) catch {
+        e => return err(HandlerError.Internal("{e}"))
+    }
+
+    net.Response {
+        status:  201
+        headers: { "Content-Type": "application/json" }
+        body:    body
+    }
+}
+
+fn handle_health(state: AppState, req: net.Request) -> net.Response!HandlerError {
+    net.Response {
+        status:  200
+        headers: { "Content-Type": "application/json" }
+        body:    `{"status":"ok"}`
+    }
+}
+
+// ============================================================
+// Middleware: logging, timing, error wrapping
+// ============================================================
+
+type Handler = fn(AppState, net.Request) -> net.Response!HandlerError
+
+fn with_logging(name: str, h: Handler) -> Handler {
+    fn(state: AppState, req: net.Request) -> net.Response!HandlerError {
+        start := time.now()
+        result := h(state, req)
+        elapsed := time.now() - start
+        match result {
+            Ok(resp)  => log.info("{req.method} {req.path} => {resp.status} ({elapsed.ms}ms)")
+            Err(e)    => log.warn("{req.method} {req.path} => error: {e}")
+        }
+        result
+    }
+}
+
+fn with_error_recovery(h: Handler) -> fn(AppState, net.Request) -> net.Response {
+    fn(state: AppState, req: net.Request) -> net.Response {
+        match h(state, req) {
+            Ok(resp) => resp
+            Err(e) => {
+                (status, api_err) := error_response(e)
+                body := json.encode(ApiResponse[User] {
+                    data: None, error: Some(api_err), took_ms: 0
+                }) catch { _ => `{"error":{"code":"INTERNAL_ERROR","message":"unknown error"}}` }
+                net.Response {
+                    status:  status
+                    headers: { "Content-Type": "application/json" }
+                    body:    body
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
+// Router
+// ============================================================
+
+fn make_router(state: AppState) -> net.Router {
+    wrap := fn(name: str, h: Handler) -> fn(AppState, net.Request) -> net.Response {
+        h |> with_logging(name) |> with_error_recovery
+    }
+
+    router := net.Router.new()
+    router.get(  "/health",      wrap("health",      handle_health))
+    router.get(  "/users/:id",   wrap("get-user",    handle_get_user))
+    router.post( "/users",       wrap("create-user", handle_create_user))
+    router
+}
+
+// ============================================================
+// Entry point
+// ============================================================
+
+entry {
+    log.info("Starting Aria HTTP server...")
+
+    // Database connection pool
+    pool := db.Pool.connect("postgres://localhost/aria_demo", max_conn: 10) catch {
+        e => { log.error("DB connection failed: {e}"); exit(1) }
+    }
+
+    state := AppState {
+        db:         pool,
+        jwt_secret: "dev-secret-change-in-prod",
+    }
+
+    router := make_router(state)
+
+    server := net.Server {
+        addr:       "0.0.0.0:8080"
+        router:     router
+        read_timeout:  30 * time.s
+        write_timeout: 30 * time.s
+    }
+
+    log.info("Listening on http://0.0.0.0:8080")
+
+    // Structured concurrency: server runs until SIGINT/SIGTERM
+    scope {
+        spawn server.listen_and_serve() catch {
+            e => { log.error("Server error: {e}"); exit(1) }
+        }
+        spawn {
+            os.signal.wait([os.SIGINT, os.SIGTERM])
+            log.info("Shutting down...")
+            server.shutdown(timeout: 30 * time.s) catch {
+                e => log.warn("Graceful shutdown error: {e}")
+            }
+        }
+    }
+
+    log.info("Server stopped")
+}

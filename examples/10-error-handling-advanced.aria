@@ -1,0 +1,237 @@
+// Example 10: Advanced Error Handling
+//
+// Demonstrates:
+//   - Domain-specific error types
+//   - Error hierarchies via enums
+//   - Retry patterns with error inspection
+//   - Fallback chains
+//   - Converting Option[T] to Result[T,E]
+//   - Converting Result[T,E] to Option[T]
+//   - Error context and wrapping
+//   - Combining multiple Results
+
+mod main
+
+use std.{time, log}
+
+// --- Domain-specific error hierarchy ---
+
+type DbError =
+    | ConnectionFailed(str)
+    | QueryFailed(str)
+    | NotFound
+    | Timeout
+    | Constraint(str)
+
+type HttpError =
+    | Status(i64, str)      // code, body
+    | NetworkError(str)
+    | Timeout
+    | ParseError(str)
+
+type AppError =
+    | Database(DbError)
+    | Network(HttpError)
+    | Validation(str)
+    | Config(str)
+    | Internal(str)
+
+// --- Error display ---
+
+fn db_error_message(e: DbError) -> str {
+    match e {
+        ConnectionFailed(addr)  => "could not connect to {addr}"
+        QueryFailed(sql)        => "query failed: {sql}"
+        NotFound                => "record not found"
+        Timeout                 => "database timeout"
+        Constraint(msg)         => "constraint violation: {msg}"
+    }
+}
+
+fn http_error_message(e: HttpError) -> str {
+    match e {
+        Status(code, body)  => "HTTP {code}: {body}"
+        NetworkError(msg)   => "network error: {msg}"
+        HttpError.Timeout   => "HTTP timeout"
+        ParseError(msg)     => "could not parse response: {msg}"
+    }
+}
+
+fn app_error_message(e: AppError) -> str {
+    match e {
+        Database(db)    => "database error: {db_error_message(db)}"
+        Network(http)   => "network error: {http_error_message(http)}"
+        Validation(msg) => "validation error: {msg}"
+        Config(msg)     => "config error: {msg}"
+        Internal(msg)   => "internal error: {msg}"
+    }
+}
+
+// --- Simulated services ---
+
+mut attempt_count := 0
+
+fn fetch_from_primary(id: i64) -> str!DbError {
+    attempt_count = attempt_count + 1
+    if attempt_count < 3 {
+        return err(DbError.Timeout)
+    }
+    "record-{id}"
+}
+
+fn fetch_from_replica(id: i64) -> str!DbError {
+    if id < 0 {
+        return err(DbError.NotFound)
+    }
+    "replica-record-{id}"
+}
+
+fn fetch_from_cache(id: i64) -> str? {
+    if id == 42 { Some("cached-record-42") } else { None }
+}
+
+// --- Retry pattern ---
+
+fn with_retry[T, E](max: i64, f: fn() -> T!E) -> T!E {
+    mut last_err: E? = None
+    for attempt in 1..=max {
+        match f() {
+            Ok(v) => return v
+            Err(e) => {
+                log.warn("Attempt {attempt}/{max} failed")
+                last_err = Some(e)
+                if attempt < max {
+                    time.sleep(100 * time.ms)
+                }
+            }
+        }
+    }
+    err(last_err!)
+}
+
+// --- Fallback chain ---
+
+fn get_record(id: i64) -> str!AppError {
+    // Try cache first (Option → Result conversion)
+    if c := fetch_from_cache(id) {
+        return c
+    }
+
+    // Try primary with retry
+    record := with_retry(3, fn() -> str!DbError = fetch_from_primary(id)) catch {
+        DbError.NotFound => return err(AppError.Database(DbError.NotFound))
+        e => {
+            log.warn("Primary failed, trying replica: {db_error_message(e)}")
+
+            // Fall back to replica
+            fetch_from_replica(id) catch {
+                re => return err(AppError.Database(re))
+            }
+        }
+    }
+
+    record
+}
+
+// --- Combining multiple Results ---
+
+struct UserProfile {
+    user_id:  i64
+    username: str
+    email:    str
+    bio:      str
+}
+
+type ValidationError = TooShort | TooLong | InvalidChars | InvalidFormat
+
+fn validate_username(s: str) -> str!ValidationError {
+    if s.len() < 3       { return err(ValidationError.TooShort)    }
+    if s.len() > 32      { return err(ValidationError.TooLong)     }
+    if !s.is_alphanum()  { return err(ValidationError.InvalidChars) }
+    s
+}
+
+fn validate_email(s: str) -> str!ValidationError {
+    if !s.contains("@") { return err(ValidationError.InvalidFormat) }
+    if s.len() < 5      { return err(ValidationError.TooShort)     }
+    s
+}
+
+fn validate_bio(s: str) -> str!ValidationError {
+    if s.len() > 500 { return err(ValidationError.TooLong) }
+    s
+}
+
+fn create_profile(id: i64, username: str, email: str, bio: str) -> UserProfile!AppError {
+    valid_username := validate_username(username) catch {
+        e => return err(AppError.Validation("username: {e}"))
+    }
+    valid_email := validate_email(email) catch {
+        e => return err(AppError.Validation("email: {e}"))
+    }
+    valid_bio := validate_bio(bio) catch {
+        e => return err(AppError.Validation("bio: {e}"))
+    }
+
+    UserProfile {
+        user_id:  id,
+        username: valid_username,
+        email:    valid_email,
+        bio:      valid_bio,
+    }
+}
+
+// --- Option / Result conversions ---
+
+fn find_even(nums: [i64]) -> i64? {
+    nums |> filter(fn(n) => n % 2 == 0) |> first()
+}
+
+fn require_even(nums: [i64]) -> i64!str {
+    find_even(nums).ok_or("no even numbers found")
+}
+
+entry {
+    println("=== Retry pattern ===")
+    attempt_count = 0
+    record := get_record(99) catch {
+        e => {
+            println("Error: {app_error_message(e)}")
+            "fallback"
+        }
+    }
+    println("Got: {record}")
+
+    println("")
+    println("=== Cache fallback ===")
+    cached := get_record(42) catch {
+        e => { println("Error: {app_error_message(e)}"); "fallback" }
+    }
+    println("Got: {cached}")
+
+    println("")
+    println("=== Profile validation ===")
+    cases := [
+        ("alice",  "alice@example.com",  "I like cats"),
+        ("ab",     "alice@example.com",  "valid bio"),
+        ("valid",  "not-an-email",       "valid bio"),
+        ("valid",  "valid@example.com",  "x" * 501),
+    ]
+    for (u, e, b) in cases {
+        match create_profile(1, u, e, b) {
+            Ok(p)  => println("✓ Profile for {p.username}")
+            Err(e) => println("✗ {app_error_message(e)}")
+        }
+    }
+
+    println("")
+    println("=== Option/Result conversion ===")
+    match require_even([1, 3, 5]) {
+        Ok(n)  => println("Found even: {n}")
+        Err(s) => println("Error: {s}")
+    }
+    match require_even([1, 4, 9]) {
+        Ok(n)  => println("Found even: {n}")
+        Err(s) => println("Error: {s}")
+    }
+}

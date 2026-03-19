@@ -1,0 +1,171 @@
+// Example 09: Concurrency
+//
+// Demonstrates:
+//   - spawn (lightweight tasks, like goroutines)
+//   - Awaiting task results
+//   - Structured concurrency with scope blocks
+//   - Unbuffered and buffered channels
+//   - Sending and receiving on channels
+//   - Select over multiple channels
+//   - Fan-out and fan-in patterns
+//   - Channel as pipeline stage
+
+mod main
+
+use std.{time, log}
+
+fn slow_compute(id: i64, delay_ms: i64) -> i64 {
+    time.sleep(delay_ms * time.ms)
+    id * id
+}
+
+fn producer(ch: chan[i64], count: i64) {
+    for i in 0..count {
+        ch.send(i)
+        log.info("Sent {i}")
+    }
+    ch.close()
+}
+
+fn consumer(ch: chan[i64], results: chan[str]) {
+    for value in ch {
+        processed := "processed: {value * 2}"
+        results.send(processed)
+    }
+    results.close()
+}
+
+fn worker(id: i64, jobs: chan[i64], results: chan[i64]) {
+    for job in jobs {
+        // Simulate work
+        time.sleep(10 * time.ms)
+        result := job * job
+        log.info("Worker {id} completed job {job} => {result}")
+        results.send(result)
+    }
+}
+
+entry {
+    // --- Spawn a single task and await its result ---
+    println("=== Single spawn ===")
+    handle := spawn slow_compute(5, 50)
+    // Do other work while task runs...
+    println("Task launched, doing other work...")
+    result := handle.await()
+    println("Task result: {result}")
+
+    // --- Structured concurrency: scope waits for all tasks ---
+    println("")
+    println("=== Structured concurrency with scope ===")
+    scope {
+        spawn {
+            time.sleep(30 * time.ms)
+            println("Task A done")
+        }
+        spawn {
+            time.sleep(10 * time.ms)
+            println("Task B done")
+        }
+        spawn {
+            time.sleep(20 * time.ms)
+            println("Task C done")
+        }
+    }
+    // All three tasks have completed here
+    println("All scope tasks completed")
+
+    // --- Parallel computation with scope and results ---
+    println("")
+    println("=== Parallel computation ===")
+    mut results_list: [i64] = []
+    result_ch := chan[i64](10)   // buffered
+
+    scope {
+        for i in 1..=5 {
+            spawn {
+                val := slow_compute(i, 20)
+                result_ch.send(val)
+            }
+        }
+    }
+    result_ch.close()
+
+    for v in result_ch {
+        results_list = results_list.append(v)
+    }
+    println("Parallel results: {results_list |> sort() |> collect()}")
+
+    // --- Unbuffered channel (producer / consumer) ---
+    println("")
+    println("=== Unbuffered channel ===")
+    ch       := chan[i64]()         // unbuffered — send blocks until recv
+    out_ch   := chan[str](20)
+
+    scope {
+        spawn producer(ch, 5)
+        spawn consumer(ch, out_ch)
+    }
+
+    for msg in out_ch {
+        println("  {msg}")
+    }
+
+    // --- Buffered channel ---
+    println("")
+    println("=== Buffered channel ===")
+    buf_ch := chan[i64](5)   // capacity 5 — won't block until full
+    for i in 0..5 {
+        buf_ch.send(i * 10)  // doesn't block — buffer has space
+    }
+    buf_ch.close()
+    for v in buf_ch {
+        println("  Buffered value: {v}")
+    }
+
+    // --- Fan-out: one channel, multiple workers ---
+    println("")
+    println("=== Fan-out pattern ===")
+    jobs_ch    := chan[i64](20)
+    fanout_res := chan[i64](20)
+
+    // Send jobs
+    for i in 1..=10 {
+        jobs_ch.send(i)
+    }
+    jobs_ch.close()
+
+    // Start workers
+    scope {
+        for worker_id in 1..=3 {
+            spawn worker(worker_id, jobs_ch, fanout_res)
+        }
+    }
+    fanout_res.close()
+
+    mut total := 0
+    for r in fanout_res {
+        total = total + r
+    }
+    println("Fan-out sum of squares: {total}")
+
+    // --- Select over multiple channels ---
+    println("")
+    println("=== Select ===")
+    ch1 := chan[str](1)
+    ch2 := chan[str](1)
+
+    spawn { time.sleep(20 * time.ms); ch1.send("from ch1") }
+    spawn { time.sleep(10 * time.ms); ch2.send("from ch2") }
+
+    // Receive from whichever is ready first (twice)
+    for _ in 0..2 {
+        select {
+            v := <-ch1 => println("Selected: {v}")
+            v := <-ch2 => println("Selected: {v}")
+            timeout(100 * time.ms) => println("Timeout!")
+        }
+    }
+
+    println("")
+    println("=== Done ===")
+}

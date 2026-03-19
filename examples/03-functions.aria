@@ -1,0 +1,149 @@
+// Example 03: Functions
+//
+// Demonstrates:
+//   - Regular multi-line functions
+//   - Single-expression shorthand (fn name(...) = expr)
+//   - Functions with multiple parameters
+//   - Generic functions with trait bounds
+//   - Closures / lambdas
+//   - Functions returning tuples (multiple values)
+//   - Higher-order functions (passing functions as arguments)
+//   - Recursive functions
+
+mod main
+
+// --- Regular function ---
+fn add(a: i64, b: i64) -> i64 {
+    a + b       // last expression is the return value — no `return` needed
+}
+
+// --- Single-expression shorthand ---
+fn square(x: f64) -> f64 = x * x
+
+fn multiply(a: i64, b: i64) -> i64 = a * b
+
+fn is_even(n: i64) -> bool = n % 2 == 0
+
+// --- Function with no return value ---
+fn print_separator() {
+    println("---")
+}
+
+// --- Function returning a tuple (multiple values) ---
+fn min_max(values: [i64]) -> (i64, i64) {
+    mut lo := values[0]
+    mut hi := values[0]
+    for v in values {
+        if v < lo { lo = v }
+        if v > hi { hi = v }
+    }
+    (lo, hi)
+}
+
+fn divide(a: f64, b: f64) -> (f64, bool) {
+    if b == 0.0 {
+        (0.0, false)
+    } else {
+        (a / b, true)
+    }
+}
+
+// --- Generic function with trait bound ---
+fn first[T](items: [T]) -> T? {
+    if items.len() == 0 { None } else { Some(items[0]) }
+}
+
+fn sum_all[T: Numeric](values: [T]) -> T {
+    mut total: T = 0
+    for v in values { total = total + v }
+    total
+}
+
+// --- Multiple trait bounds ---
+fn print_if_positive[T: Numeric + Display](value: T) {
+    if value > 0 {
+        println("Positive: {value.display()}")
+    }
+}
+
+// --- Recursive function ---
+fn factorial(n: i64) -> i64 {
+    if n <= 1 { 1 } else { n * factorial(n - 1) }
+}
+
+fn fibonacci(n: i64) -> i64 = if n <= 1 { n } else { fibonacci(n-1) + fibonacci(n-2) }
+
+// --- Higher-order function: accepts a function as parameter ---
+fn apply(value: i64, f: fn(i64) -> i64) -> i64 = f(value)
+
+fn apply_twice(value: i64, f: fn(i64) -> i64) -> i64 = f(f(value))
+
+// --- Higher-order function: returns a function ---
+fn make_adder(n: i64) -> fn(i64) -> i64 {
+    fn(x: i64) -> i64 = x + n
+}
+
+fn make_multiplier(factor: i64) -> fn(i64) -> i64 {
+    fn(x: i64) -> i64 = x * factor
+}
+
+entry {
+    // Regular calls
+    println("3 + 4 = {add(3, 4)}")
+    println("5² = {square(5.0)}")
+    println("6 × 7 = {multiply(6, 7)}")
+    println("4 is even: {is_even(4)}")
+
+    print_separator()
+
+    // Destructuring tuple return values
+    numbers := [3, 1, 4, 1, 5, 9, 2, 6]
+    (lo, hi) := min_max(numbers)
+    println("Min: {lo}, Max: {hi}")
+
+    (result, ok) := divide(10.0, 3.0)
+    if ok { println("10 / 3 = {result}") }
+
+    (_, bad) := divide(1.0, 0.0)
+    println("Divide by zero ok: {bad}")
+
+    print_separator()
+
+    // Generic functions
+    words := ["apple", "banana", "cherry"]
+    first_word := first(words)
+    match first_word {
+        Some(w) => println("First word: {w}")
+        None    => println("Empty list")
+    }
+
+    int_sum := sum_all([1, 2, 3, 4, 5])
+    println("Sum: {int_sum}")
+
+    print_separator()
+
+    // Recursion
+    println("5! = {factorial(5)}")
+    println("fib(10) = {fibonacci(10)}")
+
+    print_separator()
+
+    // Closures stored in variables
+    double := fn(x: i64) -> i64 = x * 2
+    inc    := fn(x: i64) -> i64 = x + 1
+
+    println("double(7) = {apply(7, double)}")
+    println("inc(7) = {apply(7, inc)}")
+    println("double(double(3)) = {apply_twice(3, double)}")
+
+    // Higher-order: returned functions
+    add5   := make_adder(5)
+    triple := make_multiplier(3)
+
+    println("add5(10) = {add5(10)}")
+    println("triple(7) = {triple(7)}")
+
+    // Inline lambda in call
+    result2 := apply(9, fn(x: i64) -> i64 = x * x)
+    println("9² via lambda = {result2}")
+}

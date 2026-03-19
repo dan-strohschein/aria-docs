@@ -1,0 +1,165 @@
+// Example 08: Collections and Pipelines
+//
+// Demonstrates:
+//   - List ([T]) construction and operations
+//   - Map ({K: V}) construction and operations
+//   - Set ({T}) construction and operations
+//   - Pipeline operator (|>) for transformation chains
+//   - filter, map, fold, sort_by, take, skip
+//   - collect() at the end of a pipeline
+//   - Chaining with error propagation in pipelines
+
+mod main
+
+struct Person {
+    name:   str
+    age:    i64
+    score:  f64
+    active: bool
+}
+
+fn make_people() -> [Person] {
+    [
+        Person { name: "Alice",   age: 30, score: 92.5, active: true  },
+        Person { name: "Bob",     age: 25, score: 78.0, active: true  },
+        Person { name: "Charlie", age: 35, score: 88.0, active: false },
+        Person { name: "Diana",   age: 28, score: 95.0, active: true  },
+        Person { name: "Eve",     age: 22, score: 61.0, active: true  },
+        Person { name: "Frank",   age: 40, score: 83.5, active: false },
+        Person { name: "Grace",   age: 31, score: 90.0, active: true  },
+    ]
+}
+
+entry {
+    people := make_people()
+
+    // --- Basic list operations ---
+    println("=== Basic List Ops ===")
+    nums := [3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5]
+    println("Length: {nums.len()}")
+    println("First: {nums.first()}")
+    println("Last: {nums.last()}")
+    println("Contains 9: {nums.contains(9)}")
+
+    // --- Pipeline: filter → map → collect ---
+    println("")
+    println("=== Pipelines ===")
+
+    active_names := people
+        |> filter(fn(p) => p.active)
+        |> map(fn(p) => p.name)
+        |> collect()
+    println("Active: {active_names}")
+
+    // --- Pipeline: filter → sort → take ---
+    top_scorers := people
+        |> filter(fn(p) => p.active)
+        |> sort_by(fn(p) => p.score, descending: true)
+        |> take(3)
+        |> map(fn(p) => "{p.name}({p.score})")
+        |> collect()
+    println("Top 3 active: {top_scorers}")
+
+    // --- Pipeline: map → filter → fold (reduce) ---
+    total_active_score := people
+        |> filter(fn(p) => p.active)
+        |> map(fn(p) => p.score)
+        |> fold(0.0, fn(acc, s) => acc + s)
+    println("Total active score: {total_active_score}")
+
+    active_count := people |> filter(fn(p) => p.active) |> count()
+    avg := total_active_score / active_count as f64
+    println("Average active score: {avg:.2}")
+
+    // --- Pipeline with skip and take (pagination) ---
+    page_size := 2
+    page      := 1
+    page_items := people
+        |> sort_by(fn(p) => p.name)
+        |> skip(page * page_size)
+        |> take(page_size)
+        |> map(fn(p) => p.name)
+        |> collect()
+    println("Page {page}: {page_items}")
+
+    // --- Pipeline: flat_map ---
+    println("")
+    println("=== flat_map ===")
+    sentences := ["hello world", "aria is fast", "pipelines rock"]
+    words := sentences
+        |> flat_map(fn(s) => s.split(" "))
+        |> collect()
+    println("Words: {words}")
+
+    // --- Chained mutations via map with update syntax ---
+    println("")
+    println("=== Map with update ===")
+    boosted := people
+        |> filter(fn(p) => p.active && p.score < 80.0)
+        |> map(fn(p) => p.{ score: p.score + 5.0 })
+        |> collect()
+    for p in boosted {
+        println("  Boosted {p.name}: {p.score}")
+    }
+
+    // --- Map ({K: V}) ---
+    println("")
+    println("=== Map (dictionary) ===")
+    mut scores: {str: f64} = {}
+    for p in people {
+        scores[p.name] = p.score
+    }
+    println("Alice's score: {scores["Alice"]}")
+    println("Has Bob: {scores.contains_key("Bob")}")
+
+    // Build map from pipeline
+    score_map := people
+        |> map(fn(p) => (p.name, p.score))
+        |> collect_map()
+    println("Diana: {score_map["Diana"]}")
+
+    // Iterate map
+    for (name, score) in score_map {
+        if score > 90.0 {
+            println("  High scorer: {name} = {score}")
+        }
+    }
+
+    // --- Set ({T}) ---
+    println("")
+    println("=== Set ===")
+    tags1: {str} = {"rust", "aria", "go", "python"}
+    tags2: {str} = {"aria", "python", "haskell"}
+
+    intersection := tags1 & tags2
+    union_set    := tags1 | tags2
+    difference   := tags1 - tags2
+
+    println("Intersection: {intersection}")
+    println("Union:        {union_set}")
+    println("Difference:   {difference}")
+
+    // --- any, all ---
+    println("")
+    println("=== any / all ===")
+    any_perfect  := people |> any(fn(p) => p.score == 100.0)
+    all_adult    := people |> all(fn(p) => p.age >= 18)
+    println("Any perfect score: {any_perfect}")
+    println("All adults: {all_adult}")
+
+    // --- zip ---
+    println("")
+    println("=== zip ===")
+    letters := ["a", "b", "c"]
+    numbers := [1, 2, 3]
+    pairs := letters |> zip(numbers) |> collect()
+    for (l, n) in pairs {
+        println("  {l} => {n}")
+    }
+
+    // --- sorted and unique ---
+    dupes := [5, 3, 1, 4, 1, 5, 9, 2, 6, 5]
+    sorted_unique := dupes |> sort() |> unique() |> collect()
+    println("")
+    println("Sorted unique: {sorted_unique}")
+}

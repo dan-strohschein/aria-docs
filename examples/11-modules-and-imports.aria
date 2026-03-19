@@ -1,0 +1,172 @@
+// Example 11: Modules and Imports
+//
+// Demonstrates:
+//   - Module declaration with `mod`
+//   - pub, pub(pkg), and private visibility
+//   - `use` imports (qualified and specific)
+//   - Re-exports
+//   - Module organization conventions
+//
+// Note: In a real project, each of these modules would be in separate
+// files within a package directory. This example shows the declarations
+// and usage patterns as they would appear across multiple files.
+
+// ============================================================
+// File: src/models/user.aria
+// ============================================================
+mod models.user
+
+use std.{time, crypto}
+
+// Public type — visible outside this module
+pub struct User {
+    pub id:         i64
+    pub username:   str
+    pub email:      str
+    pub created_at: time.Instant
+        password_hash: str    // private field — not pub
+}
+
+// Package-visible type — only visible within this package
+pub(pkg) struct UserCredentials {
+    user_id:       i64
+    password_hash: str
+}
+
+// Private type — only visible within this module
+struct PasswordPolicy {
+    min_length: i64
+    require_upper: bool
+}
+
+const DEFAULT_POLICY = PasswordPolicy { min_length: 8, require_upper: true }
+
+// Public function
+pub fn new_user(id: i64, username: str, email: str, password: str) -> User!UserError {
+    validate_username(username)?
+    validate_email(email)?
+    hash := hash_password(password)?
+    User {
+        id,
+        username,
+        email,
+        created_at: time.now(),
+        password_hash: hash,
+    }
+}
+
+pub fn check_password(user: User, password: str) -> bool {
+    crypto.verify(password, user.password_hash)
+}
+
+// Package-visible — can be used within the package but not exported
+pub(pkg) fn get_credentials(user: User) -> UserCredentials {
+    UserCredentials { user_id: user.id, password_hash: user.password_hash }
+}
+
+// Private — only used in this module
+fn validate_username(s: str) -> bool!UserError {
+    if s.len() < 3 { return err(UserError.UsernameTooShort) }
+    if s.len() > 64 { return err(UserError.UsernameTooLong) }
+    true
+}
+
+fn validate_email(s: str) -> bool!UserError {
+    if !s.contains("@") { return err(UserError.InvalidEmail) }
+    true
+}
+
+fn hash_password(p: str) -> str!UserError {
+    if p.len() < DEFAULT_POLICY.min_length {
+        return err(UserError.WeakPassword)
+    }
+    crypto.hash_password(p)
+}
+
+// Public error type
+pub type UserError =
+    | UsernameTooShort
+    | UsernameTooLong
+    | InvalidEmail
+    | WeakPassword
+    | NotFound(i64)
+
+// ============================================================
+// File: src/models/mod.aria
+// ============================================================
+mod models
+
+// Re-export public items from sub-modules
+pub use models.user.{User, UserError, new_user, check_password}
+
+// ============================================================
+// File: src/db/users.aria
+// ============================================================
+mod db.users
+
+use models.user.{User, UserError}
+use std.db
+
+pub struct UserRepo {
+    conn: db.Connection
+}
+
+pub fn new_repo(conn: db.Connection) -> UserRepo = UserRepo { conn }
+
+pub fn find_by_id(repo: UserRepo, id: i64) -> User!UserError {
+    result := repo.conn.query_one[User]("SELECT * FROM users WHERE id = ?", [id]) catch {
+        db.NotFound => return err(UserError.NotFound(id))
+        e           => panic("db error: {e}")
+    }
+    result
+}
+
+pub fn save(repo: UserRepo, user: User) -> bool!db.Error {
+    repo.conn.exec(
+        "INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)",
+        [user.id, user.username, user.email, user.password_hash]
+    )?
+    true
+}
+
+// ============================================================
+// File: src/main.aria
+// ============================================================
+mod main
+
+// Import the whole module (gets all pub items)
+use models
+use db.users
+
+// Import specific symbols
+use std.{log, db}
+use models.user.{User, UserError}
+
+// Import with alias (if names conflict)
+use std.crypto as std_crypto
+
+entry {
+    conn := db.connect("postgres://localhost/myapp") catch {
+        e => { log.error("DB connection failed: {e}"); exit(1) }
+    }
+
+    repo := users.new_repo(conn)
+
+    // Use the imported new_user from models (via re-export)
+    user := models.new_user(1, "alice", "alice@example.com", "securepass123") catch {
+        UserError.InvalidEmail    => { log.error("Bad email"); exit(1) }
+        UserError.WeakPassword    => { log.error("Weak password"); exit(1) }
+        e                         => { log.error("Error: {e}"); exit(1) }
+    }
+
+    users.save(repo, user) catch {
+        e => { log.error("Save failed: {e}"); exit(1) }
+    }
+
+    found := users.find_by_id(repo, 1) catch {
+        UserError.NotFound(id) => { log.warn("User {id} not found"); exit(0) }
+        e                      => { log.error("Error: {e}"); exit(1) }
+    }
+
+    log.info("Found user: {found.username}")
+}
