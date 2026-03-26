@@ -12,6 +12,14 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 4. **Performance is opt-in granular** — GC by default, manual control when needed
 5. **Simplicity for humans** — no dependency hell, no security nightmares, intuitive project structure
 
+## AI Code Generation
+
+Aria is designed to be generated correctly by AI models *without specific training*. The language's unambiguous grammar, minimal syntax, and rich type system make it inherently easy for AI to produce correct code from specification alone.
+
+- **[AI Code Generation Guide](ARIA_AI_GUIDE.md)** — inject this into any AI assistant's context for instant Aria fluency
+- **[Example Programs](examples/)** — 16 reference programs covering every language feature
+- **[Copilot Instructions](.github/copilot-instructions.md)** — automatic context for GitHub Copilot
+
 ## Documentation
 
 | Document | Description | Status |
@@ -67,9 +75,10 @@ Aria maximizes AI code generation capabilities: minimal token waste, maximum cor
 ```
 aria-docs/
 ├── README.md                           # This file
-├── CLAUDE.md                           # AI assistant guide — conventions and rules
-├── high-level-design.md                # Language spec v0.1 — core syntax and design pillars
 ├── ARIA_AI_GUIDE.md                    # Quick reference for AI code generators
+├── high-level-design.md                # Language spec v0.1 — core syntax and design pillars
+├── .github/
+│   └── copilot-instructions.md         # Automatic context for GitHub Copilot
 ├── examples/                           # 16 example programs
 │   ├── 01-hello-world.aria
 │   ├── 02-types-and-variables.aria
