@@ -109,7 +109,7 @@ fn parse_u8(s: str) -> u8!ParseError {
     if n < 0 || n > 255 {
         return err(ParseError.Overflow)
     }
-    n as u8
+    n.trunc[u8]()
 }
 
 fn handle_parse(s: str) {
