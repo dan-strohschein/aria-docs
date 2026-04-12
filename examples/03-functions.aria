@@ -80,11 +80,11 @@ fn apply_twice(value: i64, f: fn(i64) -> i64) -> i64 = f(f(value))
 
 // --- Higher-order function: returns a function ---
 fn make_adder(n: i64) -> fn(i64) -> i64 {
-    fn(x: i64) -> i64 = x + n
+    fn(x: i64) -> i64 => x + n
 }
 
 fn make_multiplier(factor: i64) -> fn(i64) -> i64 {
-    fn(x: i64) -> i64 = x * factor
+    fn(x: i64) -> i64 => x * factor
 }
 
 entry {
@@ -101,11 +101,11 @@ entry {
     (lo, hi) := min_max(numbers)
     println("Min: {lo}, Max: {hi}")
 
-    (result, ok) := divide(10.0, 3.0)
-    if ok { println("10 / 3 = {result}") }
+    div_result := divide(10.0, 3.0)
+    println("10 / 3 = {div_result.0}")
 
-    (_, bad) := divide(1.0, 0.0)
-    println("Divide by zero ok: {bad}")
+    div_bad := divide(1.0, 0.0)
+    println("Divide by zero ok: {div_bad.1}")
 
     print_separator()
 
@@ -129,8 +129,8 @@ entry {
     print_separator()
 
     // Closures stored in variables
-    double := fn(x: i64) -> i64 = x * 2
-    inc    := fn(x: i64) -> i64 = x + 1
+    double := fn(x: i64) -> i64 => x * 2
+    inc    := fn(x: i64) -> i64 => x + 1
 
     println("double(7) = {apply(7, double)}")
     println("inc(7) = {apply(7, inc)}")
@@ -144,6 +144,6 @@ entry {
     println("triple(7) = {triple(7)}")
 
     // Inline lambda in call
-    result2 := apply(9, fn(x: i64) -> i64 = x * x)
+    result2 := apply(9, fn(x: i64) -> i64 => x * x)
     println("9² via lambda = {result2}")
 }
