@@ -47,7 +47,7 @@ fn parse_percentage(s: str) -> f64!ParseError {
         _ => return err(ParseError.InvalidFormat(s))
     }
     if val < 0.0 || val > 100.0 {
-        return err(ParseError.OutOfRange(val as i64, 0, 100))
+        return err(ParseError.OutOfRange(val.trunc[i64](), 0, 100))
     }
     val
 }
