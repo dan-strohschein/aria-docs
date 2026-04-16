@@ -10,20 +10,26 @@
 // Note: In a real project, each of these modules would be in separate
 // files within a package directory. This example shows the declarations
 // and usage patterns as they would appear across multiple files.
+//
+// Aspirational stdlib APIs (std.db, std.crypto hash/verify, std.time.Instant
+// in struct fields, std.log) are commented out below — they are part of the
+// spec but not yet wired through the self-hosting compiler's stdlib. The
+// remaining uncommented code demonstrates the module/import/visibility
+// mechanics and runs end-to-end.
 
 // ============================================================
 // File: src/models/user.aria
 // ============================================================
 mod models.user
 
-use std.{time, crypto}
+// use std.{time, crypto}   // aspirational — stdlib wiring incomplete
 
 // Public type — visible outside this module
 pub struct User {
     pub id:         i64
     pub username:   str
     pub email:      str
-    pub created_at: time.Instant
+    // pub created_at: time.Instant      // needs std.time
         password_hash: str    // private field — not pub
 }
 
@@ -50,13 +56,14 @@ pub fn new_user(id: i64, username: str, email: str, password: str) -> User!UserE
         id,
         username,
         email,
-        created_at: time.now(),
+        // created_at: time.now(),       // needs std.time
         password_hash: hash,
     }
 }
 
 pub fn check_password(user: User, password: str) -> bool {
-    crypto.verify(password, user.password_hash)
+    // crypto.verify(password, user.password_hash)   // needs std.crypto
+    user.password_hash.len() > 0                     // placeholder
 }
 
 // Package-visible — can be used within the package but not exported
@@ -80,7 +87,8 @@ fn hash_password(p: str) -> str!UserError {
     if p.len() < DEFAULT_POLICY.min_length {
         return err(UserError.WeakPassword)
     }
-    crypto.hash_password(p)
+    // crypto.hash_password(p)           // needs std.crypto
+    "hashed:" + p                        // placeholder
 }
 
 // Public error type
@@ -100,34 +108,34 @@ mod models
 pub use models.user.{User, UserError, new_user, check_password}
 
 // ============================================================
-// File: src/db/users.aria
+// File: src/db/users.aria  (aspirational — needs std.db)
 // ============================================================
-mod db.users
-
-use models.user.{User, UserError}
-use std.db
-
-pub struct UserRepo {
-    conn: db.Connection
-}
-
-pub fn new_repo(conn: db.Connection) -> UserRepo = UserRepo { conn }
-
-pub fn find_by_id(repo: UserRepo, id: i64) -> User!UserError {
-    result := repo.conn.query_one[User]("SELECT * FROM users WHERE id = ?", [id]) catch {
-        db.NotFound => return err(UserError.NotFound(id))
-        e           => panic("db error: {e}")
-    }
-    result
-}
-
-pub fn save(repo: UserRepo, user: User) -> bool!db.Error {
-    repo.conn.exec(
-        "INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)",
-        [user.id, user.username, user.email, user.password_hash]
-    )?
-    true
-}
+// mod db.users
+//
+// use models.user.{User, UserError}
+// use std.db
+//
+// pub struct UserRepo {
+//     conn: db.Connection
+// }
+//
+// pub fn new_repo(conn: db.Connection) -> UserRepo = UserRepo { conn }
+//
+// pub fn find_by_id(repo: UserRepo, id: i64) -> User!UserError {
+//     result := repo.conn.query_one[User]("SELECT * FROM users WHERE id = ?", [id]) catch {
+//         db.NotFound => return err(UserError.NotFound(id))
+//         e           => panic("db error: {e}")
+//     }
+//     result
+// }
+//
+// pub fn save(repo: UserRepo, user: User) -> bool!db.Error {
+//     repo.conn.exec(
+//         "INSERT INTO users (id, username, email, password_hash) VALUES (?, ?, ?, ?)",
+//         [user.id, user.username, user.email, user.password_hash]
+//     )?
+//     true
+// }
 
 // ============================================================
 // File: src/main.aria
@@ -136,37 +144,28 @@ mod main
 
 // Import the whole module (gets all pub items)
 use models
-use db.users
+// use db.users                         // aspirational
 
 // Import specific symbols
-use std.{log, db}
+// use std.{log, db}                    // aspirational
 use models.user.{User, UserError}
 
 // Import with alias (if names conflict)
-use std.crypto as std_crypto
+// use std.crypto as std_crypto         // aspirational
 
 entry {
-    conn := db.connect("postgres://localhost/myapp") catch {
-        e => { log.error("DB connection failed: {e}"); exit(1) }
-    }
-
-    repo := users.new_repo(conn)
-
-    // Use the imported new_user from models (via re-export)
+    // Use the imported new_user from models (via re-export).
     user := models.new_user(1, "alice", "alice@example.com", "securepass123") catch {
-        UserError.InvalidEmail    => { log.error("Bad email"); exit(1) }
-        UserError.WeakPassword    => { log.error("Weak password"); exit(1) }
-        e                         => { log.error("Error: {e}"); exit(1) }
+        UserError.InvalidEmail    => { println("Bad email"); return }
+        UserError.WeakPassword    => { println("Weak password"); return }
+        e                         => { println("Error constructing user"); return }
     }
 
-    users.save(repo, user) catch {
-        e => { log.error("Save failed: {e}"); exit(1) }
-    }
+    println("Created user id={user.id} username={user.username} email={user.email}")
 
-    found := users.find_by_id(repo, 1) catch {
-        UserError.NotFound(id) => { log.warn("User {id} not found"); exit(0) }
-        e                      => { log.error("Error: {e}"); exit(1) }
+    // Error-path demo: invalid email triggers the UserError.InvalidEmail arm.
+    _ := models.new_user(2, "bob", "not-an-email", "anotherpass") catch {
+        UserError.InvalidEmail => { println("invalid email rejected as expected"); return }
+        e                      => { println("unexpected error"); return }
     }
-
-    log.info("Found user: {found.username}")
 }
