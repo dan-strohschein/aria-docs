@@ -1,31 +1,42 @@
 // Example 16: Real-World CLI Tool
 //
 // Demonstrates:
-//   - Argument parsing with std.flag
-//   - Subcommand dispatch
+//   - Argument parsing
+//   - Subcommand dispatch via match on variants
 //   - File I/O with error handling
-//   - Formatted output (tables, colors)
-//   - Pipeline processing
 //   - Exit codes
-//   - Environment variable access
+//   - Pipeline filters for file-content analysis
+//
+// Aspirational features (commented out):
+//   - Struct field defaults (verbose: bool = false)
+//   - Struct update syntax (flags.{ verbose: true })
+//   - `enumerate()` iterator method
+//   - json.encode on arbitrary structs
+//   - @[derive(Json, Debug)] attribute macros
+//   - Match guards (`b if b < 1024`)
+//   - log.set_level / log.Debug constant
+//   - Optional `str?` in sum type payloads
 
 mod main
 
-use std.{fs, flag, log, json, os, time}
+use std.{fs, os}
 
 // ============================================================
 // CLI argument structure
 // ============================================================
 
 struct GlobalFlags {
-    verbose: bool = false
-    output:  str  = "text"     // "text" | "json"
-    color:   bool = true
+    verbose: bool
+    color:   bool
+}
+
+fn default_flags() -> GlobalFlags {
+    GlobalFlags { verbose: false, color: true }
 }
 
 type Subcommand =
-    | Count  { path: str, pattern: str? }
-    | Search { path: str, query: str, recursive: bool }
+    | Count  { path: str, has_pattern: bool, pattern: str }
+    | Search { path: str, query: str }
     | Stats  { path: str }
     | Help
 
@@ -41,174 +52,113 @@ struct FileStats {
     char_count: i64
 }
 
-@[derive(Json, Debug)]
-struct SearchResult {
-    file:    str
-    line:    i64
-    content: str
-}
-
 // ============================================================
 // Argument parsing
 // ============================================================
 
-fn parse_args(args: [str]) -> (GlobalFlags, Subcommand)!str {
+fn parse_args(args: [str]) -> Subcommand!str {
     if args.len() == 0 {
-        return (GlobalFlags {}, Subcommand.Help)
+        return Subcommand.Help
     }
 
-    mut flags := GlobalFlags {}
-    mut i     := 0
-
-    // Parse global flags
+    mut i := 0
+    // Skip leading global flags (we don't actually apply them in this trimmed demo)
     while i < args.len() && args[i].starts_with("--") {
-        match args[i] {
-            "--verbose"      => { flags = flags.{ verbose: true };       i = i + 1 }
-            "--no-color"     => { flags = flags.{ color: false };        i = i + 1 }
-            "--output=json"  => { flags = flags.{ output: "json" };      i = i + 1 }
-            "--output=text"  => { flags = flags.{ output: "text" };      i = i + 1 }
-            unknown          => return err("Unknown flag: {unknown}")
-        }
+        i = i + 1
     }
 
     if i >= args.len() {
-        return (flags, Subcommand.Help)
+        return Subcommand.Help
     }
 
-    subcommand := match args[i] {
-        "count" => {
-            i = i + 1
-            if i >= args.len() {
-                return err("count requires a path argument")
-            }
-            path    := args[i]; i = i + 1
-            pattern := if i < args.len() { Some(args[i]) } else { None }
-            Subcommand.Count { path, pattern }
-        }
-        "search" => {
-            i = i + 1
-            mut recursive := false
-            if i < args.len() && args[i] == "--recursive" {
-                recursive = true
-                i = i + 1
-            }
-            if i + 1 >= args.len() {
-                return err("search requires <path> and <query> arguments")
-            }
-            path  := args[i]; i = i + 1
-            query := args[i]
-            Subcommand.Search { path, query, recursive }
-        }
-        "stats" => {
-            i = i + 1
-            if i >= args.len() {
-                return err("stats requires a path argument")
-            }
-            Subcommand.Stats { path: args[i] }
-        }
-        "help" | "--help" | "-h" => Subcommand.Help
-        unknown => return err("Unknown subcommand: {unknown}. Run with 'help' for usage.")
-    }
+    cmd := args[i]
+    i = i + 1
 
-    (flags, subcommand)
+    if cmd == "count" {
+        if i >= args.len() { return err("count requires a path") }
+        p := args[i]
+        i = i + 1
+        if i < args.len() {
+            return Subcommand.Count { path: p, has_pattern: true, pattern: args[i] }
+        }
+        return Subcommand.Count { path: p, has_pattern: false, pattern: "" }
+    }
+    if cmd == "search" {
+        if i + 1 >= args.len() { return err("search requires <path> and <query>") }
+        return Subcommand.Search { path: args[i], query: args[i + 1] }
+    }
+    if cmd == "stats" {
+        if i >= args.len() { return err("stats requires a path") }
+        return Subcommand.Stats { path: args[i] }
+    }
+    if cmd == "help" {
+        return Subcommand.Help
+    }
+    err("Unknown subcommand")
 }
 
 // ============================================================
 // Commands
 // ============================================================
 
-fn cmd_count(flags: GlobalFlags, path: str, pattern: str?) -> bool!str {
+fn cmd_count(path: str, has_pattern: bool, pattern: str) -> bool!str {
     if !fs.exists(path) {
-        return err("File not found: {path}")
+        return err("File not found")
     }
 
     content := fs.read(path) catch {
-        e => return err("Could not read file: {e}")
+        e => return err("Could not read file")
     }
     lines := content.lines()
 
-    count := match pattern {
-        Some(p) => lines |> filter(fn(l) => l.contains(p)) |> count()
-        None    => lines.len()
-    }
-
-    if flags.output == "json" {
-        result := json.encode({ "file": path, "count": count, "pattern": pattern }) catch {
-            e => return err("Encoding error: {e}")
+    if has_pattern {
+        // Note: closure capture of str isn't wired yet — use a plain for-loop.
+        mut matching := 0
+        for line in lines {
+            if line.contains(pattern) { matching = matching + 1 }
         }
-        println(result)
+        println("{matching} lines matching '{pattern}' in {path}")
     } else {
-        match pattern {
-            Some(p) => println("{count} lines matching '{p}' in {path}")
-            None    => println("{count} lines in {path}")
-        }
+        println("{lines.len()} lines in {path}")
     }
     true
 }
 
-fn cmd_search(flags: GlobalFlags, path: str, query: str, recursive: bool) -> bool!str {
-    files := if recursive {
-        fs.walk(path)
-            |> filter(fn(f) => f.ends_with(".aria") || f.ends_with(".txt") || f.ends_with(".md"))
-            |> collect()
-    } else {
-        [path]
-    }
-
-    mut results: [SearchResult] = []
-
-    for file in files {
-        content := fs.read(file) catch {
-            e => {
-                if flags.verbose { log.warn("Skipping {file}: {e}") }
-                continue
-            }
-        }
-        for (i, line) in content.lines().enumerate() {
-            if line.contains(query) {
-                results = results.append(SearchResult {
-                    file:    file
-                    line:    i + 1
-                    content: line.trim()
-                })
-            }
-        }
-    }
-
-    if results.len() == 0 {
-        println("No matches found for '{query}'")
-        return true
-    }
-
-    if flags.output == "json" {
-        output := json.encode(results) catch {
-            e => return err("Encoding error: {e}")
-        }
-        println(output)
-    } else {
-        for r in results {
-            if flags.color {
-                highlighted := r.content.replace(query, "\x1b[33m{query}\x1b[0m")
-                println("{r.file}:{r.line}: {highlighted}")
-            } else {
-                println("{r.file}:{r.line}: {r.content}")
-            }
-        }
-        println("\n{results.len()} match(es) found")
-    }
-    true
-}
-
-fn cmd_stats(flags: GlobalFlags, path: str) -> bool!str {
+fn cmd_search(path: str, query: str) -> bool!str {
     if !fs.exists(path) {
-        return err("File not found: {path}")
+        return err("File not found")
     }
 
     content := fs.read(path) catch {
-        e => return err("Could not read file: {e}")
+        e => return err("Could not read file")
     }
-    meta := fs.metadata(path) catch {
-        e => return err("Could not read metadata: {e}")
+
+    lines := content.lines()
+    mut line_no := 1
+    mut match_count := 0
+    for line in lines {
+        if line.contains(query) {
+            println("{path}:{line_no}: {line.trim()}")
+            match_count = match_count + 1
+        }
+        line_no = line_no + 1
+    }
+
+    if match_count == 0 {
+        println("No matches found for '{query}'")
+    } else {
+        println("{match_count} match(es) found")
+    }
+    true
+}
+
+fn cmd_stats(path: str) -> bool!str {
+    if !fs.exists(path) {
+        return err("File not found")
+    }
+
+    content := fs.read(path) catch {
+        e => return err("Could not read file")
     }
 
     lines := content.lines()
@@ -216,25 +166,18 @@ fn cmd_stats(flags: GlobalFlags, path: str) -> bool!str {
     chars := content.chars()
 
     stats := FileStats {
-        path:       path
-        size_bytes: meta.size
-        line_count: lines.len()
-        word_count: words.len()
-        char_count: chars.len()
+        path:       path,
+        size_bytes: content.len(),
+        line_count: lines.len(),
+        word_count: words.len(),
+        char_count: chars.len(),
     }
 
-    if flags.output == "json" {
-        output := json.encode(stats) catch {
-            e => return err("Encoding error: {e}")
-        }
-        println(output)
-    } else {
-        println("File:  {stats.path}")
-        println("Size:  {format_bytes(stats.size_bytes)}")
-        println("Lines: {stats.line_count}")
-        println("Words: {stats.word_count}")
-        println("Chars: {stats.char_count}")
-    }
+    println("File:  {stats.path}")
+    println("Size:  {format_bytes(stats.size_bytes)} bytes")
+    println("Lines: {stats.line_count}")
+    println("Words: {stats.word_count}")
+    println("Chars: {stats.char_count}")
     true
 }
 
@@ -247,19 +190,12 @@ fn cmd_help() {
     println("FLAGS:")
     println("  --verbose       Enable verbose output")
     println("  --no-color      Disable colored output")
-    println("  --output=json   Output results as JSON")
     println("")
     println("COMMANDS:")
-    println("  count <path> [pattern]             Count lines (optionally matching pattern)")
-    println("  search [--recursive] <path> <q>   Search for text in file(s)")
-    println("  stats <path>                       Show file statistics")
-    println("  help                               Show this help message")
-    println("")
-    println("EXAMPLES:")
-    println("  aria-analyze count src/main.aria")
-    println("  aria-analyze count src/main.aria fn")
-    println("  aria-analyze search --recursive src/ TODO")
-    println("  aria-analyze --output=json stats README.md")
+    println("  count <path> [pattern]    Count lines (optionally matching pattern)")
+    println("  search <path> <query>     Search for text in a file")
+    println("  stats <path>              Show file statistics")
+    println("  help                      Show this help message")
 }
 
 // ============================================================
@@ -267,12 +203,11 @@ fn cmd_help() {
 // ============================================================
 
 fn format_bytes(n: i64) -> str {
-    match n {
-        b if b < 1_024                   => "{b} B"
-        b if b < 1_024 * 1_024           => "{b / 1_024} KB"
-        b if b < 1_024 * 1_024 * 1_024   => "{b / (1_024 * 1_024)} MB"
-        b                                => "{b / (1_024 * 1_024 * 1_024)} GB"
-    }
+    // Match guards (`b if b < 1024`) aren't implemented yet; use if/else chain.
+    if n < 1024 { return "{n}" }
+    if n < 1024 * 1024 { return "{n / 1024} K" }
+    if n < 1024 * 1024 * 1024 { return "{n / (1024 * 1024)} M" }
+    "{n / (1024 * 1024 * 1024)} G"
 }
 
 // ============================================================
@@ -280,9 +215,16 @@ fn format_bytes(n: i64) -> str {
 // ============================================================
 
 entry {
-    args := os.args().skip(1).collect()    // skip the program name
+    // os.args() returns [sentinel, progname, arg1, arg2, ...]; skip 2 to get user args
+    all_args := os.args()
+    mut user_args: [str] = []
+    mut ai := 2
+    while ai < all_args.len() {
+        user_args = user_args.append(all_args[ai])
+        ai = ai + 1
+    }
 
-    (flags, subcommand) := parse_args(args) catch {
+    subcommand := parse_args(user_args) catch {
         e => {
             println("Error: {e}")
             println("Run with 'help' for usage.")
@@ -290,20 +232,11 @@ entry {
         }
     }
 
-    if flags.verbose {
-        log.set_level(log.Debug)
-    }
-
     success := match subcommand {
-        Help               => { cmd_help(); true }
-        Count { path, pattern }          => cmd_count(flags, path, pattern)
-        Search { path, query, recursive } => cmd_search(flags, path, query, recursive)
-        Stats { path }                   => cmd_stats(flags, path)
-    } catch {
-        e => {
-            println("Error: {e}")
-            false
-        }
+        Help                                   => { cmd_help(); true }
+        Count { path, has_pattern, pattern }   => cmd_count(path, has_pattern, pattern) catch { e => { println("Error: {e}"); false } }
+        Search { path, query }                 => cmd_search(path, query) catch { e => { println("Error: {e}"); false } }
+        Stats { path }                         => cmd_stats(path) catch { e => { println("Error: {e}"); false } }
     }
 
     if !success { exit(1) }
