@@ -215,7 +215,7 @@ entry {
         ("alice",  "alice@example.com",  "I like cats"),
         ("ab",     "alice@example.com",  "valid bio"),
         ("valid",  "not-an-email",       "valid bio"),
-        ("valid",  "valid@example.com",  "x" * 501),
+        ("valid",  "valid@example.com",  "x".repeat(501)),
     ]
     for (u, e, b) in cases {
         match create_profile(1, u, e, b) {
